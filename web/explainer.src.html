@@ -1,0 +1,887 @@
+<title>MoE vs. Omni-modal</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap">
+<style>
+/* Layout: a dark projection room. 16:9 animated stage first, subtitles and controls under it,
+   then transcript + sources. Single dark theme on purpose: the stage is a math-animation canvas. */
+:root {
+  color-scheme: dark;
+  --bg: #0d0f14;
+  --stage: #0a0b0f;
+  --panel: #141821;
+  --fg: #ece9e2;
+  --dim: #8a919d;
+  --faint: #2a303b;
+  --grid: #3a4150;
+  --blue: #58c4dd;
+  --yellow: #f7d96f;
+  --teal: #5cd0b3;
+  --red: #fc6255;
+  --green: #83c167;
+  --purple: #b189e0;
+  --orange: #ff9f43;
+  --f-display: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", Consolas, "SFMono-Regular", monospace;
+}
+[hidden] { display: none !important; }
+html, body { background: var(--bg); color: var(--fg); }
+body { margin: 0; font-family: var(--f-body); font-size: 16px; line-height: 1.55; }
+.wrap {
+  max-width: 1120px; margin: 0 auto; display: grid; gap: 18px;
+  padding-block: 28px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+header { display: grid; gap: 6px; }
+.eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin: 0; }
+h1 { font-family: var(--f-display); font-weight: 600; font-size: clamp(28px, 4.6vw, 44px); line-height: 1.1; margin: 0; text-wrap: balance; }
+h1 .moe { color: var(--blue); } h1 .omni { color: var(--yellow); }
+.lede { margin: 0; color: var(--dim); max-width: 62ch; }
+
+.stage { position: relative; width: 100%; max-width: 100%; aspect-ratio: 16 / 9; background: var(--stage); border-radius: 10px; overflow: hidden; outline: 1px solid var(--faint); }
+.stage:fullscreen { aspect-ratio: auto; width: 100vw; height: 100vh; border-radius: 0; outline: none; }
+.canvas { position: absolute; left: 0; top: 0; width: 1600px; height: 900px; transform-origin: 0 0; }
+.scene { position: absolute; inset: 0; }
+.scene svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.t { position: absolute; white-space: nowrap; line-height: 1.15; }
+.chip { position: absolute; white-space: nowrap; padding: 6px 14px; border: 2px solid transparent; border-radius: 8px; line-height: 1.15; font-family: var(--f-body); color: var(--fg); }
+
+.poster { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 10px; text-align: center; padding: 16px; background: radial-gradient(ellipse at 50% 45%, rgba(88,196,221,.10), transparent 60%), var(--stage); }
+.poster h2 { font-family: var(--f-display); font-weight: 600; font-size: clamp(22px, 4.2vw, 46px); line-height: 1.1; margin: 0; text-wrap: balance; }
+.poster h2 .moe { color: var(--blue); } .poster h2 .omni { color: var(--yellow); }
+.poster p { margin: 0; color: var(--dim); font-size: clamp(12px, 1.6vw, 16px); }
+.bigplay { margin-top: 8px; display: inline-flex; align-items: center; gap: 10px; font: 600 clamp(14px, 1.8vw, 18px) var(--f-body); color: var(--stage); background: var(--yellow); border: 0; border-radius: 999px; padding: 12px 22px; cursor: pointer; }
+.bigplay svg { width: 16px; height: 16px; fill: currentColor; }
+
+.caption { margin: 0; min-height: 3.3em; font-size: clamp(16px, 2.1vw, 20px); line-height: 1.5; color: var(--fg); max-width: 70ch; }
+.caption:empty::before { content: "\00a0"; }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.btn { font: 600 14px var(--f-body); color: var(--fg); background: var(--panel); border: 1px solid var(--faint); border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+.btn:hover { border-color: var(--grid); }
+.btn[aria-pressed="true"] { background: var(--yellow); color: var(--stage); border-color: var(--yellow); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.seek { flex: 1 1 220px; min-width: 0; accent-color: var(--yellow); }
+.time { font-family: var(--f-mono); font-size: 13px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.chapters { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.chapters button { font: 500 13px var(--f-body); color: var(--dim); background: transparent; border: 1px solid var(--faint); border-radius: 999px; padding: 5px 12px; cursor: pointer; }
+.chapters button.on { color: var(--fg); border-color: var(--blue); }
+.chapters .n { font-family: var(--f-mono); color: var(--dim); margin-right: 6px; }
+.notice { margin: 0; font-size: 14px; color: var(--orange); }
+
+.below { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 36px; margin-top: 18px; }
+@media (max-width: 780px) { .below { grid-template-columns: minmax(0, 1fr); } }
+.below h2 { font-family: var(--f-display); font-weight: 600; font-size: 24px; margin: 0 0 4px; }
+.below .sub { margin: 0 0 14px; color: var(--dim); font-size: 14px; }
+.tr-ch { margin: 18px 0 6px; font: 600 12px var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+.tr { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.tr button { display: grid; grid-template-columns: 3.4em minmax(0, 1fr); gap: 10px; width: 100%; text-align: left; font: 400 15px/1.5 var(--f-body); color: var(--fg); background: transparent; border: 0; border-radius: 6px; padding: 6px 8px; cursor: pointer; }
+.tr button:hover { background: var(--panel); }
+.tr button.on { background: var(--panel); box-shadow: inset 2px 0 0 var(--yellow); }
+.tr .ts { font: 400 12px/1.9 var(--f-mono); color: var(--dim); font-variant-numeric: tabular-nums; }
+.facts { display: grid; gap: 14px; font-size: 14px; }
+.facts dl { margin: 0; display: grid; gap: 10px; }
+.facts dt { font-weight: 600; }
+.facts dd { margin: 0; color: var(--dim); }
+.facts a { color: var(--blue); text-underline-offset: 2px; }
+.colophon { font-size: 13px; color: var(--dim); border-top: 1px solid var(--faint); padding-top: 12px; margin: 0; }
+@media (prefers-reduced-motion: reduce) { .btn, .chapters button, .tr button { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Narrated explainer · <span id="dur">4 min</span></p>
+    <h1><span class="moe">Mixture of Experts</span> vs. <span class="omni">Omni-modal</span></h1>
+    <p class="lede">Two terms that people often put side by side. They answer different questions about a model: what happens inside it, and what data goes in and out.</p>
+  </header>
+
+  <div class="stage" id="stage">
+    <div class="canvas" id="canvas" aria-hidden="true"></div>
+    <div class="poster" id="poster">
+      <p class="eyebrow" id="poster-eyebrow">Narrated explainer</p>
+      <h2><span class="moe">Mixture of Experts</span> vs. <span class="omni">Omni-modal</span></h2>
+      <p>Dense vs. MoE · text-only, multimodal, omni-modal · one chart</p>
+      <button class="bigplay" id="bigplay" type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 1.8v12.4L14 8z"/></svg>Play with narration</button>
+    </div>
+  </div>
+
+  <p class="caption" id="caption" aria-live="polite"></p>
+
+  <div class="controls">
+    <button class="btn" id="play" type="button" aria-label="Play">Play</button>
+    <input class="seek" id="seek" type="range" min="0" max="100" step="0.05" value="0" aria-label="Seek">
+    <span class="time" id="time">0:00 / 0:00</span>
+    <button class="btn" id="cc" type="button" aria-pressed="true">Subtitles</button>
+    <button class="btn" id="fs" type="button">Full screen</button>
+  </div>
+  <ol class="chapters" id="chapters"></ol>
+  <p class="notice" id="notice" hidden></p>
+
+  <div class="below">
+    <section>
+      <h2>Transcript</h2>
+      <p class="sub">Narration written to ASD-STE100 Simplified Technical English rules. Select a line to go to it.</p>
+      <div id="transcript"></div>
+    </section>
+    <aside class="facts">
+      <div>
+        <h2>Facts on screen</h2>
+        <p class="sub">Where each claim in the video comes from.</p>
+      </div>
+      <dl>
+        <dt>Claude Opus, Claude Sonnet</dt>
+        <dd>Input: text, images, PDF. Output: text. Architecture not published; weights not downloadable. <a href="https://platform.claude.com/docs/en/build-with-claude/vision" target="_blank" rel="noopener">Anthropic vision docs</a></dd>
+        <dt>gpt-oss 20B</dt>
+        <dd>MoE, 21B total / 3.6B active, text in and out. <a href="https://docs.api.nvidia.com/nim/reference/openai-gpt-oss-20b" target="_blank" rel="noopener">NVIDIA NIM model card</a></dd>
+        <dt>Gemma 4 26B and 31B</dt>
+        <dd>26B A4B is MoE (3.8B active); 31B is dense. Both take text and images. <a href="https://ai.google.dev/gemma/docs/core/model_card_4" target="_blank" rel="noopener">Gemma 4 model card</a></dd>
+        <dt>Qwen3-Omni 30B</dt>
+        <dd>MoE, 30B total / 3B active; text, audio and video in; text or speech out. <a href="https://github.com/QwenLM/Qwen3-Omni" target="_blank" rel="noopener">Qwen3-Omni on GitHub</a></dd>
+        <dt>Qwen3-Coder 30B</dt>
+        <dd>128 experts, 8 active for each token. <a href="https://huggingface.co/Qwen/Qwen3-Coder-30B-A3B-Instruct" target="_blank" rel="noopener">Hugging Face model card</a></dd>
+        <dt>Qwen 3.6 27B and 35B-A3B</dt>
+        <dd>27B dense; 35B total with 3B active. <a href="https://ice-ice-bear.github.io/posts/2026-05-10-open-weight-models-digest/" target="_blank" rel="noopener">Open-weight models digest, May 2026</a></dd>
+        <dt>Llama 3.2 3B</dt>
+        <dd>Dense, text-only (the 11B and 90B versions take images). <a href="https://ai.meta.com/blog/llama-3-2-connect-2024-vision-edge-mobile-devices/" target="_blank" rel="noopener">Meta announcement</a></dd>
+        <dt>Ollama tags shown</dt>
+        <dd>Checked against the Ollama registry. <a href="https://ollama.com/library" target="_blank" rel="noopener">ollama.com/library</a></dd>
+      </dl>
+      <p class="colophon">Voice: Windows text-to-speech draft voice. Narration follows the STE100 writing rules (sentence length, active voice, simple tenses); words were not checked against the licensed STE100 dictionary.</p>
+    </aside>
+  </div>
+</div>
+
+<audio id="aud" src="narration.mp4" preload="auto"></audio>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+"use strict";
+const DATA = /*__TIMELINE__*/null;
+if (!DATA || typeof gsap === "undefined") {
+  const msg = !DATA
+    ? "This file is the page template. Run build_web.py, then open web/explainer-local.html."
+    : "The animation library did not load. Check the internet connection, then reload the page.";
+  const n = document.getElementById("notice");
+  n.textContent = msg;
+  n.hidden = false;
+  document.getElementById("bigplay").disabled = true;
+  document.getElementById("play").disabled = true;
+  throw new Error(msg);
+}
+const SEG = Object.fromEntries(DATA.segments.map(s => [s.key, s]));
+const at = (k, off = 0) => SEG[k].start + off;
+const dur = k => SEG[k].dur;
+
+const css = getComputedStyle(document.documentElement);
+const C = {};
+["fg", "dim", "faint", "grid", "blue", "yellow", "teal", "red", "green", "purple", "orange", "stage"]
+  .forEach(n => { C[n] = css.getPropertyValue("--" + n).trim(); });
+function hexA(hex, a) {
+  const n = parseInt(hex.replace("#", ""), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+
+const NS = "http://www.w3.org/2000/svg";
+const canvas = document.getElementById("canvas");
+const SCENES = {};
+let tl;
+
+/* ------------------------------------------------------------ builders */
+function makeScene(id) {
+  const el = document.createElement("div");
+  el.className = "scene";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", "0 0 1600 900");
+  el.appendChild(svg);
+  canvas.appendChild(el);
+  gsap.set(el, { autoAlpha: 0 });
+  SCENES[id] = el;
+  return { el, svg };
+}
+function S(parent, tag, attrs = {}, style = {}) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  Object.assign(e.style, style);
+  parent.appendChild(e);
+  return e;
+}
+function H(sc, text, o = {}) {
+  const e = document.createElement("div");
+  e.className = "t";
+  e.textContent = text;
+  e.style.left = (o.x ?? 800) + "px";
+  e.style.top = (o.y ?? 450) + "px";
+  e.style.fontSize = (o.size || 32) + "px";
+  e.style.color = o.color || C.fg;
+  e.style.fontWeight = o.weight || 400;
+  e.style.fontFamily = o.font === "serif" ? "var(--f-display)" : o.font === "mono" ? "var(--f-mono)" : "var(--f-body)";
+  sc.el.appendChild(e);
+  gsap.set(e, { xPercent: o.anchor === "left" ? 0 : o.anchor === "right" ? -100 : -50, yPercent: -50, autoAlpha: 0 });
+  return e;
+}
+function chip(sc, text, color, o = {}) {
+  const e = document.createElement("div");
+  e.className = "chip";
+  e.textContent = text;
+  e.style.left = (o.x ?? 800) + "px";
+  e.style.top = (o.y ?? 450) + "px";
+  e.style.fontSize = (o.size || 32) + "px";
+  e.style.borderColor = color;
+  e.style.background = hexA(color, 0.15);
+  sc.el.appendChild(e);
+  gsap.set(e, { xPercent: -50, yPercent: -50, autoAlpha: 0 });
+  return e;
+}
+function centers(els, cx, gap) {
+  const w = els.map(e => e.offsetWidth);
+  const total = w.reduce((a, b) => a + b, 0) + gap * (els.length - 1);
+  let x = cx - total / 2;
+  return w.map(wi => { const c = x + wi / 2; x += wi + gap; return c; });
+}
+function rowLayout(els, cx, gap) {
+  const cs = centers(els, cx, gap);
+  els.forEach((e, i) => { e.style.left = cs[i] + "px"; });
+  return cs;
+}
+function arrow(sc, x1, y1, x2, y2, color, w = 4, head = 16) {
+  const ang = Math.atan2(y2 - y1, x2 - x1), ux = Math.cos(ang), uy = Math.sin(ang);
+  const bx = x2 - ux * head, by = y2 - uy * head;
+  const line = S(sc.svg, "line", { x1, y1, x2: bx, y2: by }, { stroke: color, strokeWidth: w });
+  const px = -uy * head * 0.55, py = ux * head * 0.55;
+  const tip = S(sc.svg, "polygon", { points: `${x2},${y2} ${bx + px},${by + py} ${bx - px},${by - py}` }, { fill: color });
+  gsap.set([line, tip], { autoAlpha: 0 });
+  return { line, tip };
+}
+
+/* ------------------------------------------------------------ animation verbs */
+function fadeIn(el, t, d = 0.6, o = {}) {
+  gsap.set(el, { x: o.dx ?? 0, y: o.dy ?? 14 });
+  tl.to(el, { autoAlpha: 1, x: 0, y: 0, duration: d, ease: "power2.out", stagger: o.stagger || 0 }, t);
+}
+function fadeOut(el, t, d = 0.5) { tl.to(el, { autoAlpha: 0, duration: d }, t); }
+function splitChars(e) {
+  if (e._chars) return e._chars;
+  const s = e.textContent;
+  e.textContent = "";
+  e._chars = [...s].map(ch => {
+    const sp = document.createElement("span");
+    sp.textContent = ch === " " ? " " : ch;
+    sp.style.display = "inline-block";
+    e.appendChild(sp);
+    return sp;
+  });
+  return e._chars;
+}
+function write(e, t, d = 1) {
+  const cs = splitChars(e);
+  gsap.set(cs, { opacity: 0, y: 10 });
+  tl.set(e, { autoAlpha: 1 }, t);
+  tl.to(cs, { opacity: 1, y: 0, duration: Math.min(0.45, d * 0.5), ease: "power2.out", stagger: (d * 0.6) / cs.length }, t);
+}
+function draw(el, t, d = 0.8) {
+  const L = el.getTotalLength();
+  gsap.set(el, { strokeDasharray: L, strokeDashoffset: L, autoAlpha: 0 });
+  tl.set(el, { autoAlpha: 1 }, t);
+  tl.to(el, { strokeDashoffset: 0, duration: d, ease: "power1.inOut" }, t);
+}
+function drawArrow(a, t, d = 0.8) { draw(a.line, t, d); tl.to(a.tip, { autoAlpha: 1, duration: 0.2 }, t + d * 0.85); }
+function pulse(el, t, s = 1.15, d = 0.5) {
+  tl.to(el, { scale: s, duration: d / 2, yoyo: true, repeat: 1, transformOrigin: "50% 50%", ease: "power1.inOut" }, t);
+}
+function cross(sc, cx, cy, w, h, t) {
+  const a = S(sc.svg, "line", { x1: cx - w, y1: cy - h, x2: cx + w, y2: cy + h }, { stroke: C.red, strokeWidth: 6 });
+  const b = S(sc.svg, "line", { x1: cx - w, y1: cy + h, x2: cx + w, y2: cy - h }, { stroke: C.red, strokeWidth: 6 });
+  draw(a, t, 0.3); draw(b, t + 0.25, 0.3);
+  return [a, b];
+}
+
+/* ------------------------------------------------------------ icons */
+function iconFrame(g, cx, cy, col) { S(g, "rect", { x: cx - 50, y: cy - 39, width: 100, height: 78, rx: 9 }, { fill: "none", stroke: col, strokeWidth: 3 }); }
+function iconText(sc, cx, cy, col) {
+  const g = S(sc.svg, "g"); iconFrame(g, cx, cy, col);
+  const t = S(g, "text", { x: cx, y: cy + 11, "text-anchor": "middle" }, { fill: col, fontFamily: "var(--f-body)", fontWeight: 700, fontSize: "32px" });
+  t.textContent = "Aa";
+  gsap.set(g, { autoAlpha: 0 }); return g;
+}
+function iconImage(sc, cx, cy, col) {
+  const g = S(sc.svg, "g"); iconFrame(g, cx, cy, col);
+  S(g, "polygon", { points: `${cx - 42},${cy + 31} ${cx - 12},${cy - 8} ${cx + 8},${cy + 12} ${cx + 22},${cy} ${cx + 42},${cy + 31}` }, { fill: hexA(col, 0.6) });
+  S(g, "circle", { cx: cx + 22, cy: cy - 18, r: 9 }, { fill: col });
+  gsap.set(g, { autoAlpha: 0 }); return g;
+}
+function iconAudio(sc, cx, cy, col) {
+  const g = S(sc.svg, "g"); iconFrame(g, cx, cy, col);
+  [14, 34, 56, 30, 58, 40, 20, 44, 14].forEach((h, i) => {
+    const x = cx - 38 + i * 9.5;
+    S(g, "line", { x1: x, y1: cy - h / 2, x2: x, y2: cy + h / 2 }, { stroke: col, strokeWidth: 4, strokeLinecap: "round" });
+  });
+  gsap.set(g, { autoAlpha: 0 }); return g;
+}
+function iconVideo(sc, cx, cy, col) {
+  const g = S(sc.svg, "g"); iconFrame(g, cx, cy, col);
+  S(g, "polygon", { points: `${cx - 11},${cy - 15} ${cx - 11},${cy + 15} ${cx + 16},${cy}` }, { fill: col });
+  for (let i = 0; i < 5; i++) for (const y of [cy - 31, cy + 25]) S(g, "rect", { x: cx - 39 + i * 17, y, width: 7, height: 6 }, { fill: col });
+  gsap.set(g, { autoAlpha: 0 }); return g;
+}
+
+/* ------------------------------------------------------------ scene: intro */
+function buildIntro() {
+  const sc = makeScene("intro");
+  const moe = H(sc, "Mixture of Experts", { y: 400, size: 70, color: C.blue, weight: 700 });
+  const vs = H(sc, "vs.", { y: 404, size: 46, color: C.dim, font: "serif" });
+  const omni = H(sc, "Omni-modal", { y: 400, size: 70, color: C.yellow, weight: 700 });
+  const xs = rowLayout([moe, vs, omni], 800, 56);
+
+  write(moe, at("i1", 0.1), 1.2);
+  fadeIn(vs, at("i1", 1.3), 0.5, { dy: 0 });
+  write(omni, at("i1", 1.4), 1.1);
+
+  const cr = cross(sc, xs[1], 402, 40, 32, at("i2", 0.1));
+  const sub = H(sc, "two different questions", { y: 530, size: 40 });
+  fadeOut([vs, ...cr], at("i2", 1.0), 0.5);
+  fadeIn(sub, at("i2", 1.0), 0.7);
+
+  const vax = arrow(sc, 240, 795, 240, 165, C.blue, 5, 20);
+  const q1 = [
+    H(sc, "Question 1", { anchor: "left", x: 290, y: 190, size: 26, color: C.dim }),
+    H(sc, "Architecture", { anchor: "left", x: 290, y: 245, size: 48, color: C.blue, weight: 700 }),
+    H(sc, "what is inside the model", { anchor: "left", x: 290, y: 302, size: 30 }),
+    H(sc, "dense or MoE", { anchor: "left", x: 290, y: 352, size: 32, color: C.blue, weight: 600 }),
+  ];
+  fadeOut(sub, at("i3"), 0.4);
+  drawArrow(vax, at("i3", 0.1), 0.9);
+  fadeIn(q1.slice(0, 3), at("i3", 0.9), 0.5, { dx: -16, dy: 0, stagger: 0.15 });
+  tl.to(moe, { x: 290 + q1[3].offsetWidth / 2 - xs[0], y: 352 - 400, scale: 0.46, autoAlpha: 0, duration: 1.1, ease: "power2.inOut" }, at("i3", 1.1));
+  fadeIn(q1[3], at("i3", 1.6), 0.6, { dy: 0 });
+
+  const hax = arrow(sc, 240, 795, 1420, 795, C.yellow, 5, 20);
+  const q2 = [
+    H(sc, "Question 2", { anchor: "right", x: 1400, y: 560, size: 26, color: C.dim }),
+    H(sc, "Modality", { anchor: "right", x: 1400, y: 614, size: 48, color: C.yellow, weight: 700 }),
+    H(sc, "what data goes in and out", { anchor: "right", x: 1400, y: 670, size: 30 }),
+    H(sc, "text-only, multimodal, omni-modal", { anchor: "right", x: 1400, y: 720, size: 32, color: C.yellow, weight: 600 }),
+  ];
+  drawArrow(hax, at("i4", 0.1), 0.9);
+  fadeIn(q2.slice(0, 3), at("i4", 0.9), 0.5, { dx: 16, dy: 0, stagger: 0.15 });
+  tl.to(omni, { x: 1400 - q2[3].offsetWidth / 2 - xs[2], y: 720 - 400, scale: 0.46, autoAlpha: 0, duration: 1.1, ease: "power2.inOut" }, at("i4", 1.1));
+  fadeIn(q2[3], at("i4", 1.6), 0.6, { dy: 0 });
+}
+
+/* ------------------------------------------------------------ scene: dense */
+function buildDense() {
+  const sc = makeScene("dense");
+  write(H(sc, "Dense model", { y: 78, size: 56, font: "serif", weight: 600 }), at("d1", 0.1), 1.0);
+
+  const words = ["Local", "models", "run", "fast"], cols = [C.blue, C.teal, C.yellow, C.purple];
+  const chips = words.map((w, i) => {
+    const e = chip(sc, w, cols[i], { y: 200, size: 34 });
+    gsap.set(e, { borderColor: "rgba(0,0,0,0)", backgroundColor: "rgba(0,0,0,0)" });
+    return e;
+  });
+  const sentX = rowLayout(chips, 800, -20);
+  const spreadX = centers(chips, 800, 40);
+  chips.forEach((c, i) => write(c, at("d2", 0.1 + i * 0.22), 0.6));
+  chips.forEach((c, i) => tl.to(c, { x: spreadX[i] - sentX[i], borderColor: cols[i], backgroundColor: hexA(cols[i], 0.15), duration: 1, ease: "power2.inOut" }, at("d2", 1.4)));
+  const tokLab = H(sc, "tokens", { anchor: "left", x: spreadX[3] + chips[3].offsetWidth / 2 + 28, y: 200, size: 28, color: C.dim });
+  fadeIn(tokLab, at("d2", 2.4), 0.5, { dx: -12, dy: 0 });
+
+  const xs = [330, 497.5, 665, 832.5, 1000], ys = [330, 402, 474, 546, 618, 690];
+  const edges = [], layers = [];
+  for (let i = 0; i < 4; i++) {
+    const g = S(sc.svg, "g", {}, { stroke: C.faint, strokeWidth: 1.2 });
+    for (const y1 of ys) for (const y2 of ys) S(g, "line", { x1: xs[i], y1, x2: xs[i + 1], y2 });
+    gsap.set(g, { autoAlpha: 0 }); edges.push(g);
+  }
+  for (const x of xs) {
+    const g = S(sc.svg, "g", {}, { fill: C.dim });
+    for (const y of ys) S(g, "circle", { cx: x, cy: y, r: 11 });
+    gsap.set(g, { autoAlpha: 0 }); layers.push(g);
+  }
+  fadeIn(layers, at("d3", 0.0), 0.4, { dy: 0, stagger: 0.08 });
+  tl.to(edges, { autoAlpha: 1, duration: 0.8 }, at("d3", 0.3));
+  const tok = chip(sc, "models", C.teal, { x: spreadX[1], y: 200, size: 34 });
+  fadeIn(tok, at("d3", 1.0), 0.3, { dy: 0 });
+  tl.to(tok, { x: 190 - spreadX[1], y: 310, duration: 0.8, ease: "power2.inOut" }, at("d3", 1.2));
+  const w0 = at("d3", 2.2);
+  tl.to(tok, { x: "+=90", scale: 0.6, autoAlpha: 0, duration: 0.4 }, w0);
+  layers.forEach((g, i) => {
+    tl.to(g, { fill: C.yellow, duration: 0.35 }, w0 + i * 0.4);
+    if (i > 0) tl.to(edges[i - 1], { stroke: C.yellow, opacity: 0.55, duration: 0.35 }, w0 + i * 0.4 - 0.2);
+  });
+
+  const name = H(sc, "Qwen 3.6 27B", { x: 1310, y: 420, size: 32, weight: 700 });
+  const cap = H(sc, "parameters used for each token", { x: 1310, y: 466, size: 22, color: C.dim });
+  const barBg = S(sc.svg, "rect", { x: 1160, y: 496, width: 300, height: 36 }, { fill: "none", stroke: C.dim, strokeWidth: 2 });
+  const barFill = S(sc.svg, "rect", { x: 1160, y: 496, width: 300, height: 36 }, { fill: C.yellow });
+  gsap.set(barBg, { autoAlpha: 0 });
+  gsap.set(barFill, { scaleX: 0, transformOrigin: "0% 50%" });
+  const val = H(sc, "27 B of 27 B", { x: 1310, y: 572, size: 28, color: C.yellow, font: "mono" });
+  fadeIn([name, cap, barBg], at("d4", 0.1), 0.6, { stagger: 0.1 });
+  tl.to(barFill, { scaleX: 1, duration: 1.4, ease: "power2.inOut" }, at("d4", 0.7));
+  fadeIn(val, at("d4", 1.4), 0.5);
+  layers.forEach((g, i) => pulse(g, at("d4", 2.3 + i * 0.15), 1.1, 0.4));
+
+  const msg = H(sc, "every token uses all 27 B parameters  →  slow on a small computer", { y: 815, size: 30, color: C.red });
+  fadeIn(msg, at("d5", 0.1), 0.7);
+}
+
+/* ------------------------------------------------------------ scene: MoE */
+function buildMoe() {
+  const sc = makeScene("moe");
+  write(H(sc, "Mixture of Experts (MoE)", { y: 78, size: 56, font: "serif", weight: 600 }), at("m1", 0.1), 1.2);
+
+  const EX = 870, ys = [...Array(8)].map((_, i) => 205 + i * 70);
+  const layerRect = S(sc.svg, "rect", { x: 380, y: 165, width: 910, height: 570, rx: 18 }, { fill: "none", stroke: C.dim, strokeWidth: 2, strokeDasharray: "10 9" });
+  gsap.set(layerRect, { autoAlpha: 0 });
+  const layerLab = H(sc, "one layer", { x: 835, y: 765, size: 26, color: C.dim });
+  const inL = ys.map(y => S(sc.svg, "line", { x1: 550, y1: 450, x2: 765, y2: y }, { stroke: C.dim, strokeWidth: 2 }));
+  const outL = ys.map(y => S(sc.svg, "line", { x1: 975, y1: y, x2: 1210, y2: 450 }, { stroke: C.dim, strokeWidth: 2 }));
+  const boxes = ys.map(y => S(sc.svg, "rect", { x: EX - 105, y: y - 24, width: 210, height: 48, rx: 8 }, { stroke: C.blue, strokeWidth: 2.5, fill: hexA(C.blue, 0.06) }));
+  gsap.set(boxes, { autoAlpha: 0 });
+  const labs = ys.map((y, i) => H(sc, `Expert ${i + 1}`, { x: EX, y, size: 22 }));
+  const router = S(sc.svg, "rect", { x: 370, y: 400, width: 180, height: 100, rx: 14 }, { stroke: C.teal, strokeWidth: 3, fill: hexA(C.teal, 0.12) });
+  const routerLab = H(sc, "Router", { x: 460, y: 450, size: 30, color: C.teal, weight: 700 });
+  const comb = S(sc.svg, "circle", { cx: 1210, cy: 450, r: 32 }, { stroke: C.fg, strokeWidth: 3, fill: C.stage });
+  const combLab = H(sc, "+", { x: 1210, y: 447, size: 38, weight: 700 });
+  const ring = S(sc.svg, "circle", { cx: 1210, cy: 450, r: 34 }, { stroke: C.yellow, strokeWidth: 4, fill: "none" });
+  gsap.set([router, comb, ring], { autoAlpha: 0 });
+
+  fadeIn(boxes, at("m2", 0.1), 0.4, { dx: -20, dy: 0, stagger: 0.1 });
+  fadeIn(labs, at("m2", 0.1), 0.4, { dx: -20, dy: 0, stagger: 0.1 });
+  fadeIn([layerRect, layerLab], at("m2", 1.4), 0.6, { dy: 0 });
+  boxes.forEach((b, i) => pulse(b, at("m2", 2.4 + i * 0.1), 1.06, 0.4));
+
+  function bring(word, color, t, rt = 1) {
+    const e = chip(sc, word, color, { x: 150, y: 450, size: 28 });
+    fadeIn(e, t, 0.35 * rt, { dx: -30, dy: 0 });
+    tl.to(e, { x: 150, duration: 0.45 * rt, ease: "power2.inOut" }, t + 0.35 * rt);
+    return e;
+  }
+  function select(sel, t, rt = 1) {
+    for (let i = 0; i < 8; i++) {
+      const on = sel.includes(i), d = 0.6 * rt;
+      const ls = { stroke: on ? C.yellow : C.dim, strokeWidth: on ? 5 : 2, opacity: on ? 1 : 0.2, duration: d };
+      tl.to(inL[i], ls, t);
+      tl.to(outL[i], ls, t);
+      tl.to(boxes[i], { stroke: on ? C.yellow : C.dim, fill: on ? hexA(C.yellow, 0.3) : hexA(C.blue, 0.03), opacity: on ? 1 : 0.6, duration: d }, t);
+      tl.to(labs[i], { opacity: on ? 1 : 0.35, duration: d }, t);
+    }
+  }
+  function flow(tok, word, color, sel, t, rt = 1) {
+    tl.to(tok, { autoAlpha: 0, scale: 0.5, duration: 0.3 * rt }, t);
+    sel.forEach(i => {
+      const d = S(sc.svg, "circle", { cx: 550, cy: 450, r: 9 }, { fill: C.yellow });
+      gsap.set(d, { autoAlpha: 0 });
+      tl.set(d, { autoAlpha: 1 }, t);
+      tl.to(d, { attr: { cx: 765, cy: ys[i] }, duration: 0.55 * rt, ease: "none" }, t);
+      tl.to(d, { attr: { cx: 975 }, duration: 0.15 * rt, ease: "none" }, t + 0.55 * rt);
+      tl.to(d, { attr: { cx: 1210, cy: 450 }, duration: 0.5 * rt, ease: "none" }, t + 0.7 * rt);
+      tl.set(d, { autoAlpha: 0 }, t + 1.2 * rt);
+    });
+    tl.fromTo(ring, { autoAlpha: 1, attr: { r: 34 } }, { autoAlpha: 0, attr: { r: 72 }, duration: 0.5 * rt, immediateRender: false }, t + 1.2 * rt);
+    const out = chip(sc, word, color, { x: 1420, y: 450, size: 28 });
+    fadeIn(out, t + 1.2 * rt, 0.4 * rt, { dx: -20, dy: 0 });
+    return out;
+  }
+
+  fadeIn([router, routerLab], at("m3", 0.1), 0.5, { dy: 0 });
+  inL.forEach((l, i) => draw(l, at("m3", 0.4 + i * 0.03), 0.6));
+  outL.forEach((l, i) => draw(l, at("m3", 0.5 + i * 0.03), 0.6));
+  fadeIn([comb, combLab], at("m3", 0.7), 0.4, { dy: 0 });
+  const tok1 = bring("models", C.teal, at("m3", 1.3));
+  select([1, 5], at("m3", 2.2));
+
+  const out1 = flow(tok1, "models", C.teal, [1, 5], at("m4", 0.2), 1.3);
+
+  let t = at("m5", 0.1);
+  fadeOut(out1, t, 0.2);
+  const tok2 = bring("run", C.yellow, t + 0.2, 0.6);
+  select([0, 3], t + 0.7, 0.6);
+  const out2 = flow(tok2, "run", C.yellow, [0, 3], t + 1.1, 0.6);
+  t += 2.2;
+  fadeOut(out2, t, 0.2);
+  const tok3 = bring("fast", C.purple, t + 0.2, 0.6);
+  select([4, 7], t + 0.7, 0.6);
+  const out3 = flow(tok3, "fast", C.purple, [4, 7], t + 1.1, 0.6);
+
+  // 128 experts grid
+  const diagram = [layerRect, layerLab, ...inL, ...outL, ...boxes, ...labs, router, routerLab, comb, combLab, out3];
+  fadeOut(diagram, at("m6", 0), 0.5);
+  const sq = [];
+  for (let r = 0; r < 8; r++) for (let c = 0; c < 16; c++) {
+    sq.push(S(sc.svg, "rect", { x: 524.5 + c * 35, y: 334.5 + r * 35, width: 26, height: 26, rx: 3 }, { stroke: C.blue, strokeWidth: 1.5, fill: hexA(C.blue, 0.06) }));
+  }
+  gsap.set(sq, { autoAlpha: 0 });
+  const gTop = H(sc, "Qwen3-Coder 30B", { y: 290, size: 36, weight: 700 });
+  const gBot = H(sc, "128 experts  ·  8 selected for each token", { y: 652, size: 32, color: C.yellow });
+  tl.to(sq, { autoAlpha: 1, duration: 0.3, stagger: 0.006 }, at("m6", 0.6));
+  fadeIn(gTop, at("m6", 0.6), 0.5);
+  const lit = [5, 19, 38, 50, 77, 90, 101, 122].map(i => sq[i]);
+  tl.to(lit, { fill: C.yellow, stroke: C.yellow, duration: 0.5, stagger: 0.08 }, at("m6", 1.7));
+  fadeIn(gBot, at("m6", 1.9), 0.5);
+
+  // total vs active
+  fadeOut([...sq, gTop, gBot], at("m7", 0), 0.5);
+  const U = 19, X0 = 520;
+  const head = H(sc, "Qwen 3.6 35B-A3B", { y: 230, size: 36, weight: 700 });
+  const l1 = H(sc, "in total", { anchor: "left", x: 180, y: 330, size: 30 });
+  const b1 = S(sc.svg, "rect", { x: X0, y: 307, width: 35 * U, height: 46 }, { fill: C.blue });
+  const v1 = H(sc, "35 B", { anchor: "left", x: X0 + 35 * U + 18, y: 330, size: 30, color: C.blue, font: "mono" });
+  const l2 = H(sc, "used for each token", { anchor: "left", x: 180, y: 450, size: 30 });
+  const b2 = S(sc.svg, "rect", { x: X0, y: 427, width: 3 * U, height: 46 }, { fill: C.yellow });
+  const v2 = H(sc, "3 B", { anchor: "left", x: X0 + 3 * U + 18, y: 450, size: 30, color: C.yellow, font: "mono" });
+  gsap.set([b1, b2], { scaleX: 0, transformOrigin: "0% 50%" });
+  fadeIn(head, at("m7", 0.5), 0.5);
+  fadeIn(l1, at("m7", 1.0), 0.4, { dy: 0 });
+  tl.to(b1, { scaleX: 1, duration: 1.0, ease: "power2.out" }, at("m7", 1.0));
+  fadeIn(v1, at("m7", 1.8), 0.4, { dy: 0 });
+  fadeIn(l2, at("m7", dur("m7") * 0.55), 0.4, { dy: 0 });
+  tl.to(b2, { scaleX: 1, duration: 0.6, ease: "power2.out" }, at("m7", dur("m7") * 0.55));
+  fadeIn(v2, at("m7", dur("m7") * 0.55 + 0.5), 0.4, { dy: 0 });
+
+  const n1 = H(sc, "All 35 B must be in memory (RAM)  →  needs much memory", { y: 600, size: 28, color: C.blue });
+  const n2 = H(sc, "Only 3 B do work for each token  →  fast", { y: 672, size: 28, color: C.yellow });
+  pulse(b1, at("m8", 0.2), 1.04, 0.6); fadeIn(n1, at("m8", 0.3), 0.6);
+  pulse(b2, at("m9", 0.2), 1.3, 0.6); fadeIn(n2, at("m9", 0.3), 0.6);
+
+  // dense vs MoE
+  fadeOut([head, l1, b1, v1, l2, b2, v2, n1, n2], at("m10", 0), 0.5);
+  function row(label, mem, work, y, wc) {
+    const lab = H(sc, label, { anchor: "left", x: 180, y: y + 28, size: 32, weight: 700 });
+    const bm = S(sc.svg, "rect", { x: X0, y, width: mem * U, height: 36 }, { fill: C.blue });
+    const tm = H(sc, `${mem} B in memory`, { anchor: "left", x: X0 + mem * U + 16, y: y + 18, size: 24, color: C.blue });
+    const bw = S(sc.svg, "rect", { x: X0, y: y + 55, width: work * U, height: 36 }, { fill: wc });
+    const tw = H(sc, `${work} B work for each token`, { anchor: "left", x: X0 + work * U + 16, y: y + 73, size: 24, color: wc });
+    gsap.set([bm, bw], { scaleX: 0, transformOrigin: "0% 50%" });
+    return { lab, bm, tm, bw, tw };
+  }
+  function showRow(r, t) {
+    fadeIn(r.lab, t, 0.4, { dy: 0 });
+    tl.to([r.bm, r.bw], { scaleX: 1, duration: 0.8, ease: "power2.out", stagger: 0.15 }, t);
+    fadeIn([r.tm, r.tw], t + 0.6, 0.4, { dy: 0, stagger: 0.15 });
+  }
+  const r1 = row("27B dense", 27, 27, 212, C.red);
+  const r2 = row("35B MoE", 35, 3, 412, C.green);
+  showRow(r1, at("m10", 0.6));
+  showRow(r2, at("m10", 1.6));
+  const laptop = H(sc, "Laptop with 32 GB of memory: both models fit.", { y: 640, size: 28, color: C.dim });
+  const verdict = H(sc, "MoE: about 9× less work for each token  →  faster", { y: 722, size: 34, color: C.green, weight: 700 });
+  fadeIn(laptop, at("m10", 2.6), 0.5);
+  const ring2 = S(sc.svg, "rect", { x: X0 - 14, y: 455, width: 3 * U + 16 + r2.tw.offsetWidth + 28, height: 60, rx: 12 }, { fill: "none", stroke: C.green, strokeWidth: 3 });
+  draw(ring2, at("m10", 3.2), 0.7);
+  fadeIn(verdict, at("m10", 3.4), 0.6);
+}
+
+/* ------------------------------------------------------------ scene: modality */
+function buildModality() {
+  const sc = makeScene("modality");
+  write(H(sc, "Modality: what goes in and out", { y: 78, size: 56, font: "serif", weight: 600 }), at("o1", 0.1), 1.2);
+
+  const ry = [265, 390, 515, 640], cols = [C.fg, C.green, C.purple, C.red];
+  const icons = [iconText(sc, 150, ry[0], cols[0]), iconImage(sc, 150, ry[1], cols[1]), iconAudio(sc, 150, ry[2], cols[2]), iconVideo(sc, 150, ry[3], cols[3])];
+  const encR = ry.map((y, i) => S(sc.svg, "rect", { x: 325, y: y - 34, width: 190, height: 68, rx: 10 }, { fill: hexA(cols[i], 0.06), stroke: cols[i], strokeWidth: 2.5 }));
+  gsap.set(encR, { autoAlpha: 0 });
+  const encL = ry.map((y, i) => H(sc, "encoder", { x: 420, y, size: 24, color: cols[i] }));
+  const a1 = ry.map(y => arrow(sc, 205, y, 318, y, C.dim, 3, 14));
+  const a2 = ry.map(y => arrow(sc, 522, y, 782, y, C.dim, 3, 14));
+  const model = S(sc.svg, "rect", { x: 790, y: 215, width: 250, height: 475, rx: 22 }, { stroke: C.blue, strokeWidth: 3, fill: hexA(C.blue, 0.08) });
+  gsap.set(model, { autoAlpha: 0 });
+  const modelLab = H(sc, "Model", { x: 915, y: 452, size: 38, color: C.blue, weight: 700 });
+  const outText = iconText(sc, 1250, 385, C.fg);
+  const outSpeech = iconAudio(sc, 1250, 520, C.teal);
+  const outTextLab = H(sc, "text", { anchor: "left", x: 1322, y: 385, size: 28 });
+  const outSpeechLab = H(sc, "speech", { anchor: "left", x: 1322, y: 520, size: 28, color: C.teal });
+  const oa1 = arrow(sc, 1048, 385, 1192, 385, C.dim, 3, 14);
+  const oa2 = arrow(sc, 1048, 520, 1192, 520, C.dim, 3, 14);
+  const modes = [["Text-only model", C.fg], ["Multimodal model", C.green], ["Omni-modal model", C.yellow]]
+    .map(([s, c]) => H(sc, s, { x: 1330, y: 232, size: 36, color: c, weight: 700 }));
+
+  function showRow(i, t) {
+    fadeIn(icons[i], t, 0.35, { dx: -14, dy: 0 });
+    drawArrow(a1[i], t + 0.25, 0.35);
+    fadeIn([encR[i], encL[i]], t + 0.55, 0.35, { dy: 0 });
+    drawArrow(a2[i], t + 0.8, 0.45);
+  }
+  fadeIn([model, modelLab], at("o2", 0.1), 0.6, { dy: 0 });
+  showRow(0, at("o2", 0.6));
+  drawArrow(oa1, at("o2", 1.7), 0.4);
+  fadeIn([outText, outTextLab], at("o2", 2.0), 0.4, { dy: 0 });
+  fadeIn(modes[0], at("o2", 2.0), 0.5);
+
+  const note = H(sc, "Claude Opus, Claude Sonnet:  text + images + PDF in  →  text out", { y: 815, size: 27, color: C.orange });
+  showRow(1, at("o3", 0.1));
+  fadeOut(modes[0], at("o3", 0.4), 0.3);
+  fadeIn(modes[1], at("o3", 0.6), 0.5);
+  fadeIn(note, at("o3", 2.2), 0.6);
+
+  fadeOut(note, at("o4", 0), 0.4);
+  showRow(2, at("o4", 0.3));
+  showRow(3, at("o4", 0.8));
+  fadeOut(modes[1], at("o4", 0.5), 0.3);
+  fadeIn(modes[2], at("o4", 0.7), 0.5);
+  drawArrow(oa2, at("o4", dur("o4") * 0.6), 0.4);
+  fadeIn([outSpeech, outSpeechLab], at("o4", dur("o4") * 0.6 + 0.3), 0.4, { dy: 0 });
+
+  encR.forEach((r, i) => pulse([r, encL[i]], at("o5", 0.1 + i * 0.2), 1.1, 0.5));
+  const toks = [];
+  ry.forEach((y, r) => { for (let k = 0; k < 3; k++) toks.push(S(sc.svg, "rect", { x: 548 + k * 30 - 11, y: y - 11, width: 22, height: 22, rx: 3 }, { fill: cols[r] })); });
+  gsap.set(toks, { autoAlpha: 0 });
+  tl.to(toks, { autoAlpha: 1, duration: 0.25, stagger: 0.05 }, at("o5", dur("o5") * 0.55));
+
+  tl.to(modelLab, { y: 255 - 452, duration: 0.6, ease: "power2.inOut" }, at("o6", 0.1));
+  toks.forEach((tk, k) => {
+    const r = Math.floor(k / 3), c = k % 3;
+    tl.to(tk, { attr: { x: 881 + c * 34 - 11, y: 420 + r * 40 - 11 }, duration: 1.1, ease: "power2.inOut" }, at("o6", 0.5 + k * 0.03));
+  });
+  pulse(model, at("o6", 1.9), 1.03, 0.6);
+
+  const tags = ry.map(y => H(sc, "+ parameters", { x: 420, y: y - 52, size: 20, color: C.orange }));
+  fadeIn(tags, at("o7", 0.1), 0.4, { dy: 8, stagger: 0.15 });
+  tl.to(encR, { stroke: C.orange, duration: 0.5, stagger: 0.15 }, at("o7", 0.1));
+  const mem = H(sc, "each encoder adds parameters  →  more memory", { y: 815, size: 30, color: C.orange });
+  fadeIn(mem, at("o7", dur("o7") * 0.45), 0.6);
+}
+
+/* ------------------------------------------------------------ scene: chart */
+function buildChart() {
+  const sc = makeScene("chart");
+  write(H(sc, "Two questions, one chart", { y: 78, size: 56, font: "serif", weight: 600 }), at("p1", 0.1), 1.2);
+
+  const L = 190, HW = 250, CW = 370, CH = 130, TOP = 330, R = L + HW + 3 * CW, B = TOP + 3 * CH;
+  const cx = c => L + HW + CW * (c + 0.5), cy = r => TOP + CH * (r + 0.5);
+  const lines = [];
+  for (let k = 0; k < 4; k++) lines.push(S(sc.svg, "line", { x1: L, y1: TOP + CH * k, x2: R, y2: TOP + CH * k }, { stroke: C.grid, strokeWidth: 2 }));
+  for (let k = 0; k < 4; k++) lines.push(S(sc.svg, "line", { x1: L + HW + CW * k, y1: TOP - 100, x2: L + HW + CW * k, y2: B }, { stroke: C.grid, strokeWidth: 2 }));
+  lines.forEach((l, i) => draw(l, at("p2", 0.1 + i * 0.06), 0.5));
+  const colHeads = [["Text-only", "text"], ["Multimodal", "+ images"], ["Omni-modal", "+ audio, video, speech"]].map(([n, s], c) => [
+    H(sc, n, { x: cx(c), y: 262, size: 32, color: C.yellow, weight: 700 }),
+    H(sc, s, { x: cx(c), y: 300, size: 20, color: C.dim }),
+  ]);
+  const rowHeads = [["Dense", C.blue, 0], ["MoE", C.blue, 0], ["Not public", C.dim, -14]].map(([n, col, dy], r) =>
+    H(sc, n, { x: L + HW / 2, y: cy(r) + dy, size: 32, color: col, weight: 700 }));
+  fadeIn(rowHeads, at("p2", dur("p2") * 0.15), 0.5, { dx: -14, dy: 0, stagger: 0.2 });
+  fadeIn(colHeads.flat(), at("p2", dur("p2") * 0.55), 0.5, { dy: -10, stagger: 0.1 });
+
+  function entry(name, tag, r, c, t, color = C.fg) {
+    const n = H(sc, name, { x: cx(c), y: cy(r) - 14, size: 28, color });
+    const g = H(sc, tag, { x: cx(c), y: cy(r) + 22, size: 20, color: C.dim, font: "mono" });
+    write(n, t, 0.8);
+    fadeIn(g, t + 0.6, 0.4, { dy: 0 });
+  }
+  entry("Llama 3.2 3B", "llama3.2:3b", 0, 0, at("p3", 0.2));
+  entry("Gemma 4 31B", "gemma4:31b", 0, 1, at("p3", dur("p3") * 0.5));
+  entry("gpt-oss 20B", "gpt-oss:20b", 1, 0, at("p4", 0.2));
+  entry("Gemma 4 26B", "gemma4:26b", 1, 1, at("p4", dur("p4") * 0.5));
+  entry("Qwen3-Omni 30B", "open weights", 1, 2, at("p5", 0.2));
+
+  const claude = [
+    H(sc, "Claude Opus", { x: cx(2), y: cy(2) - 32, size: 28, color: C.orange }),
+    H(sc, "Claude Sonnet", { x: cx(2), y: cy(2) + 2, size: 28, color: C.orange }),
+    H(sc, "closed weights", { x: cx(2), y: cy(2) + 38, size: 20, color: C.dim, font: "mono" }),
+  ];
+  fadeIn(claude, at("p6", 0.1), 0.5, { stagger: 0.1 });
+  const cr = cross(sc, cx(2), cy(2), 120, 50, at("p6", 1.0));
+  fadeOut(cr, at("p6", dur("p6") * 0.5), 0.3);
+  tl.to(claude, { x: cx(1) - cx(2), duration: 1.0, ease: "power2.inOut" }, at("p6", dur("p6") * 0.5));
+
+  const q = H(sc, "dense or MoE?", { x: L + HW / 2, y: cy(2) + 24, size: 20, color: C.dim });
+  const box = S(sc.svg, "rect", { x: L + 14, y: cy(2) - 44, width: HW - 28, height: 92, rx: 12 }, { fill: "none", stroke: C.orange, strokeWidth: 3 });
+  draw(box, at("p7", 0.2), 0.8);
+  fadeIn(q, at("p7", 0.7), 0.5, { dy: 0 });
+  fadeOut(box, at("p7", dur("p7") - 0.2), 0.4);
+
+  const note = H(sc, "Weights not public: no download, no local run", { y: 800, size: 30, color: C.red });
+  fadeIn(note, at("p8", 0.2), 0.6);
+}
+
+/* ------------------------------------------------------------ scene: summary */
+function buildSummary() {
+  const sc = makeScene("summary");
+  write(H(sc, "Two points to remember", { y: 78, size: 56, font: "serif", weight: 600 }), at("s1", 0.1), 1.0);
+  function card(x, color, head, l1, l2, t) {
+    const r = S(sc.svg, "rect", { x: x - 320, y: 270, width: 640, height: 300, rx: 20 }, { fill: hexA(color, 0.06), stroke: color, strokeWidth: 3 });
+    const h = H(sc, head, { x, y: 348, size: 52, color, weight: 700 });
+    const a = H(sc, l1, { x, y: 428, size: 32 });
+    const b = H(sc, l2, { x, y: 488, size: 26, color: C.dim });
+    draw(r, t, 0.9);
+    write(h, t + 0.3, 0.8);
+    fadeIn([a, b], t + 0.9, 0.5, { stagger: 0.2 });
+  }
+  card(440, C.blue, "MoE", "how the model works inside", "a large model can be fast", at("s2", 0.1));
+  card(1160, C.yellow, "Omni-modal", "which data goes in and out", "text, images, audio, video, speech", at("s3", 0.1));
+  const chips = [["MoE", C.blue], ["omni-modal", C.yellow], ["both", C.green], ["neither", C.dim]].map(([w, c]) => chip(sc, w, c, { y: 700, size: 32 }));
+  rowLayout(chips, 800, 36);
+  fadeIn(chips, at("s4", 0.4), 0.5, { stagger: dur("s4") * 0.15 });
+}
+
+/* ------------------------------------------------------------ player */
+const stage = document.getElementById("stage");
+const poster = document.getElementById("poster");
+const aud = document.getElementById("aud");
+const playBtn = document.getElementById("play");
+const seek = document.getElementById("seek");
+const timeEl = document.getElementById("time");
+const capEl = document.getElementById("caption");
+const ccBtn = document.getElementById("cc");
+const notice = document.getElementById("notice");
+const TOTAL = DATA.total;
+let playing = false, useAudio = true, clockBase = 0, clockStart = 0, captionsOn = true, lastKey = null;
+
+const fmt = s => { s = Math.max(0, Math.floor(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+
+function fit() {
+  const W = stage.clientWidth, Hh = stage.clientHeight;
+  const s = Math.min(W / 1600, Hh / 900);
+  canvas.style.transform = `translate(${(W - 1600 * s) / 2}px, ${(Hh - 900 * s) / 2}px) scale(${s})`;
+}
+new ResizeObserver(fit).observe(stage);
+
+function now() {
+  if (useAudio) return aud.currentTime;
+  return playing ? clockBase + (performance.now() - clockStart) / 1000 : clockBase;
+}
+function segAt(t) {
+  let cur = null;
+  for (const s of DATA.segments) { if (s.start <= t + 0.05) cur = s; else break; }
+  return cur && t < cur.start + cur.dur + 0.6 ? cur : null;
+}
+function render(t) {
+  if (tl) tl.time(Math.min(t, tl.duration()), false);
+  seek.value = t;
+  timeEl.textContent = `${fmt(t)} / ${fmt(TOTAL)}`;
+  const s = segAt(t);
+  const key = s ? s.key : null;
+  if (key !== lastKey) {
+    lastKey = key;
+    capEl.textContent = captionsOn && s ? s.text : "";
+    document.querySelectorAll(".tr button.on").forEach(b => b.classList.remove("on"));
+    if (s) document.querySelector(`.tr button[data-k="${s.key}"]`)?.classList.add("on");
+  }
+  const ch = [...DATA.chapters].reverse().find(c => c.start - 0.5 <= t);
+  document.querySelectorAll(".chapters button").forEach(b => b.classList.toggle("on", ch && b.dataset.id === ch.id));
+}
+function loop() {
+  const t = now();
+  render(t);
+  if (!playing) return;
+  if (t >= TOTAL - 0.02) { pause(); return; }
+  requestAnimationFrame(loop);
+}
+function setPlayUI() {
+  playBtn.textContent = playing ? "Pause" : "Play";
+  playBtn.setAttribute("aria-label", playing ? "Pause" : "Play");
+}
+function startClock() { clockStart = performance.now(); }
+function play() {
+  if (!tl) return;
+  poster.hidden = true;
+  if (now() >= TOTAL - 0.05) seekTo(0);
+  playing = true;
+  setPlayUI();
+  if (useAudio) {
+    aud.play().catch(() => { useAudio = false; showNotice(); clockBase = 0; startClock(); });
+  } else startClock();
+  requestAnimationFrame(loop);
+}
+function pause() {
+  if (!useAudio) clockBase = now();
+  playing = false;
+  aud.pause();
+  setPlayUI();
+  render(now());
+}
+function seekTo(t) {
+  t = Math.max(0, Math.min(TOTAL, t));
+  if (useAudio) { try { aud.currentTime = t; } catch (e) { /* not ready yet */ } }
+  clockBase = t; clockStart = performance.now();
+  render(t);
+}
+function showNotice() {
+  notice.hidden = false;
+  notice.textContent = "The narration audio did not load. The animation plays with subtitles only.";
+}
+aud.addEventListener("error", () => { if (useAudio) { const t = now(); useAudio = false; clockBase = t; startClock(); showNotice(); } });
+aud.addEventListener("loadedmetadata", () => { if (!playing && clockBase > 0) { try { aud.currentTime = clockBase; } catch (e) { /* ignore */ } } });
+aud.addEventListener("ended", () => { if (useAudio) { playing = false; setPlayUI(); render(TOTAL); } });
+
+playBtn.addEventListener("click", () => (playing ? pause() : play()));
+document.getElementById("bigplay").addEventListener("click", play);
+seek.addEventListener("input", () => { poster.hidden = true; seekTo(parseFloat(seek.value)); });
+ccBtn.addEventListener("click", () => {
+  captionsOn = !captionsOn;
+  ccBtn.setAttribute("aria-pressed", String(captionsOn));
+  lastKey = "__";
+  render(now());
+});
+document.getElementById("fs").addEventListener("click", () => {
+  if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+  else stage.requestFullscreen?.().catch(() => {});
+});
+document.addEventListener("fullscreenchange", fit);
+document.addEventListener("keydown", e => {
+  const tag = (e.target.tagName || "").toLowerCase();
+  if (tag === "input" || tag === "button" || tag === "textarea") return;
+  if (e.code === "Space") { e.preventDefault(); playing ? pause() : play(); }
+  else if (e.code === "ArrowRight") seekTo(now() + 5);
+  else if (e.code === "ArrowLeft") seekTo(now() - 5);
+});
+
+/* ------------------------------------------------------------ chapters + transcript */
+function buildLists() {
+  const chList = document.getElementById("chapters");
+  const tr = document.getElementById("transcript");
+  DATA.chapters.forEach((ch, i) => {
+    const li = document.createElement("li");
+    const b = document.createElement("button");
+    b.type = "button";
+    b.dataset.id = ch.id;
+    b.innerHTML = `<span class="n">${i + 1}</span>`;
+    b.append(ch.title);
+    b.addEventListener("click", () => { poster.hidden = true; seekTo(Math.max(0, ch.start - 0.45)); });
+    li.appendChild(b);
+    chList.appendChild(li);
+
+    const h = document.createElement("h3");
+    h.className = "tr-ch";
+    h.textContent = `${i + 1} · ${ch.title}`;
+    tr.appendChild(h);
+    const ol = document.createElement("ol");
+    ol.className = "tr";
+    DATA.segments.filter(s => s.chapter === ch.id).forEach(s => {
+      const li2 = document.createElement("li");
+      const b2 = document.createElement("button");
+      b2.type = "button";
+      b2.dataset.k = s.key;
+      const ts = document.createElement("span"); ts.className = "ts"; ts.textContent = fmt(s.start);
+      const tx = document.createElement("span"); tx.textContent = s.text;
+      b2.append(ts, tx);
+      b2.addEventListener("click", () => { poster.hidden = true; seekTo(s.start - 0.05); });
+      li2.appendChild(b2);
+      ol.appendChild(li2);
+    });
+    tr.appendChild(ol);
+  });
+}
+
+function init() {
+  tl = gsap.timeline({ paused: true });
+  buildIntro(); buildDense(); buildMoe(); buildModality(); buildChart(); buildSummary();
+  gsap.set(SCENES.intro, { autoAlpha: 1 });
+  DATA.chapters.forEach((ch, i) => {
+    const el = SCENES[ch.id], nx = DATA.chapters[i + 1];
+    if (i > 0) tl.set(el, { autoAlpha: 1 }, ch.start - 0.45);
+    if (nx) tl.to(el, { autoAlpha: 0, duration: 0.6 }, nx.start - 1.0);
+  });
+  tl.to({}, { duration: 0.01 }, TOTAL);
+  render(0);
+}
+
+document.getElementById("dur").textContent = `${Math.floor(TOTAL / 60)} min ${Math.round(TOTAL % 60)} s`;
+document.getElementById("poster-eyebrow").textContent = `Narrated explainer · ${fmt(TOTAL)}`;
+seek.max = TOTAL;
+timeEl.textContent = `0:00 / ${fmt(TOTAL)}`;
+buildLists();
+fit();
+Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 2500))]).then(init);
+</script>

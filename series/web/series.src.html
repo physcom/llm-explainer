@@ -1,0 +1,802 @@
+<title>ML to AI Engineering</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap">
+<style>
+/* Layout: a dark projection room (same identity as the MoE explainer).
+   Episode strip -> 16:9 animated stage -> subtitles + controls -> runnable code -> transcript + sources.
+   Single dark theme on purpose: the stage is a math-animation canvas. */
+:root {
+  color-scheme: dark;
+  --bg: #0d0f14;
+  --stage: #0a0b0f;
+  --panel: #141821;
+  --code: #10131a;
+  --fg: #ece9e2;
+  --dim: #8a919d;
+  --faint: #2a303b;
+  --grid: #3a4150;
+  --blue: #58c4dd;
+  --yellow: #f7d96f;
+  --teal: #5cd0b3;
+  --red: #fc6255;
+  --green: #83c167;
+  --purple: #b189e0;
+  --orange: #ff9f43;
+  --f-display: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", Consolas, "SFMono-Regular", monospace;
+}
+[hidden] { display: none !important; }
+html, body { background: var(--bg); color: var(--fg); }
+body { margin: 0; font-family: var(--f-body); font-size: 16px; line-height: 1.55; }
+.wrap {
+  max-width: 1120px; margin: 0 auto; display: grid; gap: 18px;
+  padding-block: 28px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap > * { min-width: 0; }
+header { display: grid; gap: 6px; }
+.eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin: 0; }
+h1 { font-family: var(--f-display); font-weight: 600; font-size: clamp(30px, 4.8vw, 46px); line-height: 1.1; margin: 0; text-wrap: balance; }
+h1 .ml { color: var(--blue); } h1 .ai { color: var(--yellow); }
+.lede { margin: 0; color: var(--dim); max-width: 64ch; }
+
+/* episode strip: the order is the course order, so the numbers carry information */
+.eps { list-style: none; margin: 6px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(146px, 1fr)); gap: 8px; }
+.ep { width: 100%; height: 100%; display: grid; align-content: start; gap: 2px; text-align: left; font: inherit; color: var(--fg); background: var(--panel); border: 1px solid var(--faint); border-top: 3px solid var(--lv, var(--grid)); border-radius: 8px; padding: 9px 12px 11px; cursor: pointer; }
+.ep:hover:not(:disabled) { border-color: var(--grid); border-top-color: var(--lv, var(--grid)); }
+.ep[aria-current="true"] { background: #1b2130; border-color: var(--lv); }
+.ep:disabled { cursor: default; color: var(--dim); background: transparent; }
+.ep-n { font: 500 12px var(--f-mono); color: var(--dim); font-variant-numeric: tabular-nums; }
+.ep-lv { font: 600 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--lv); }
+.ep-t { font-weight: 600; font-size: 15px; line-height: 1.3; }
+.ep-d { font: 400 12px var(--f-mono); color: var(--dim); }
+
+.ep-head { display: grid; gap: 4px; margin-top: 10px; }
+.ep-head h2 { font-family: var(--f-display); font-weight: 600; font-size: clamp(24px, 3.4vw, 34px); line-height: 1.15; margin: 0; text-wrap: balance; }
+.ep-head p { margin: 0; color: var(--dim); max-width: 70ch; }
+
+.stage { position: relative; width: 100%; max-width: 100%; aspect-ratio: 16 / 9; background: var(--stage); border-radius: 10px; overflow: hidden; outline: 1px solid var(--faint); }
+.stage:fullscreen { aspect-ratio: auto; width: 100vw; height: 100vh; border-radius: 0; outline: none; }
+.canvas { position: absolute; left: 0; top: 0; width: 1600px; height: 900px; transform-origin: 0 0; }
+.scene { position: absolute; inset: 0; }
+.scene svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.t { position: absolute; white-space: nowrap; line-height: 1.15; }
+.t.wrapt { white-space: normal; text-wrap: balance; }
+.chip { position: absolute; white-space: nowrap; padding: 6px 14px; border: 2px solid transparent; border-radius: 8px; line-height: 1.15; font-family: var(--f-body); color: var(--fg); }
+.codebox { position: absolute; font-family: var(--f-mono); line-height: 1.45; color: var(--fg); background: var(--code); border: 1px solid var(--faint); border-radius: 12px; padding: 18px 24px; white-space: pre; }
+.codebox .row { display: block; }
+
+.poster { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 10px; text-align: center; padding: 16px; background: radial-gradient(ellipse at 50% 45%, rgba(88,196,221,.10), transparent 60%), var(--stage); }
+.poster h3 { font-family: var(--f-display); font-weight: 600; font-size: clamp(24px, 4.6vw, 50px); line-height: 1.1; margin: 0; text-wrap: balance; }
+.poster p { margin: 0; color: var(--dim); font-size: clamp(12px, 1.6vw, 16px); max-width: 52ch; }
+.bigplay { margin-top: 8px; display: inline-flex; align-items: center; gap: 10px; font: 600 clamp(14px, 1.8vw, 18px) var(--f-body); color: var(--stage); background: var(--yellow); border: 0; border-radius: 999px; padding: 12px 22px; cursor: pointer; }
+.bigplay svg { width: 16px; height: 16px; fill: currentColor; }
+
+.caption { margin: 0; min-height: 3.3em; font-size: clamp(16px, 2.1vw, 20px); line-height: 1.5; color: var(--fg); max-width: 70ch; }
+.caption:empty::before { content: "\00a0"; }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.btn { font: 600 14px var(--f-body); color: var(--fg); background: var(--panel); border: 1px solid var(--faint); border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+.btn:hover { border-color: var(--grid); }
+.btn[aria-pressed="true"] { background: var(--yellow); color: var(--stage); border-color: var(--yellow); }
+button:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.seek { flex: 1 1 220px; min-width: 0; accent-color: var(--yellow); }
+.time { font-family: var(--f-mono); font-size: 13px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.chapters { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.chapters button { font: 500 13px var(--f-body); color: var(--dim); background: transparent; border: 1px solid var(--faint); border-radius: 999px; padding: 5px 12px; cursor: pointer; }
+.chapters button.on { color: var(--fg); border-color: var(--blue); }
+.chapters .n { font-family: var(--f-mono); color: var(--dim); margin-right: 6px; }
+.notice { margin: 0; font-size: 14px; color: var(--orange); }
+
+section > h2, .below h2 { font-family: var(--f-display); font-weight: 600; font-size: 24px; margin: 0 0 4px; }
+.sub { margin: 0 0 14px; color: var(--dim); font-size: 14px; max-width: 72ch; }
+
+/* code examples */
+.code { margin-top: 18px; }
+.exs { display: grid; gap: 12px; }
+.ex { background: var(--panel); border: 1px solid var(--faint); border-radius: 10px; min-width: 0; }
+.ex > summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; padding: 12px 16px; cursor: pointer; list-style: none; }
+.ex > summary::-webkit-details-marker { display: none; }
+.ex > summary::before { content: "▸"; color: var(--dim); font-size: 13px; }
+.ex[open] > summary::before { content: "▾"; }
+.ex-t { font-weight: 600; }
+.ex-f { font: 400 13px var(--f-mono); color: var(--dim); }
+.badge { margin-left: auto; font: 500 12px var(--f-mono); padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; }
+.badge.ok { color: var(--green); } .badge.no { color: var(--orange); }
+.ex-body { display: grid; gap: 10px; padding: 0 16px 16px; min-width: 0; }
+.ex-body > * { min-width: 0; }
+.ex-about { margin: 0; color: var(--dim); font-size: 15px; max-width: 80ch; }
+.codewrap { position: relative; min-width: 0; }
+.copy { position: absolute; top: 8px; right: 8px; font: 500 12px var(--f-body); color: var(--dim); background: var(--panel); border: 1px solid var(--faint); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+.copy:hover { color: var(--fg); }
+pre.src, pre.out { margin: 0; overflow-x: auto; font: 13.5px/1.6 var(--f-mono); tab-size: 4; border-radius: 8px; padding: 14px 16px; }
+pre.src { background: var(--code); border: 1px solid var(--faint); }
+pre.out { background: transparent; border: 1px dashed var(--grid); color: #c9ccd2; }
+.out-h { margin: 4px 0 -4px; font: 600 12px var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+.src .c { color: var(--dim); font-style: italic; } .src .s { color: var(--green); } .src .k { color: var(--purple); } .src .n { color: var(--orange); }
+
+.below { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 36px; margin-top: 18px; }
+@media (max-width: 780px) { .below { grid-template-columns: minmax(0, 1fr); } }
+.tr-ch { margin: 18px 0 6px; font: 600 12px var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+.tr { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.tr button { display: grid; grid-template-columns: 3.4em minmax(0, 1fr); gap: 10px; width: 100%; text-align: left; font: 400 15px/1.5 var(--f-body); color: var(--fg); background: transparent; border: 0; border-radius: 6px; padding: 6px 8px; cursor: pointer; }
+.tr button:hover { background: var(--panel); }
+.tr button.on { background: var(--panel); box-shadow: inset 2px 0 0 var(--yellow); }
+.tr .ts { font: 400 12px/1.9 var(--f-mono); color: var(--dim); font-variant-numeric: tabular-nums; }
+.facts { display: grid; gap: 14px; font-size: 14px; align-content: start; }
+.facts dl { margin: 0; display: grid; gap: 10px; }
+.facts dt { font-weight: 600; }
+.facts dd { margin: 0; color: var(--dim); }
+.facts a { color: var(--blue); text-underline-offset: 2px; }
+.colophon { font-size: 13px; color: var(--dim); border-top: 1px solid var(--faint); padding-top: 12px; margin: 0; }
+@media (prefers-reduced-motion: reduce) { .btn, .chapters button, .tr button, .ep { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow" id="series-eyebrow">Narrated series</p>
+    <h1><span class="ml">Machine learning</span> to <span class="ai">AI engineering</span></h1>
+    <p class="lede">From a line fitted to 24 houses to an application built on a large language model, then five deep dives: fine-tuning, alignment, fast inference, agents, and advanced RAG with evals. Each episode is an animated, narrated lesson with Python code that you can run.</p>
+    <ol class="eps" id="eps" aria-label="Episodes"></ol>
+  </header>
+
+  <div class="ep-head">
+    <p class="eyebrow" id="ep-eyebrow">Episode</p>
+    <h2 id="ep-title">&nbsp;</h2>
+    <p id="ep-blurb"></p>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="canvas" id="canvas" aria-hidden="true"></div>
+    <div class="poster" id="poster">
+      <p class="eyebrow" id="poster-eyebrow">Episode</p>
+      <h3 id="poster-title">&nbsp;</h3>
+      <p id="poster-sub"></p>
+      <button class="bigplay" id="bigplay" type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 1.8v12.4L14 8z"/></svg>Play with narration</button>
+    </div>
+  </div>
+
+  <p class="caption" id="caption" aria-live="polite"></p>
+
+  <div class="controls">
+    <button class="btn" id="play" type="button" aria-label="Play">Play</button>
+    <input class="seek" id="seek" type="range" min="0" max="100" step="0.05" value="0" aria-label="Seek">
+    <span class="time" id="time">0:00 / 0:00</span>
+    <button class="btn" id="cc" type="button" aria-pressed="true">Subtitles</button>
+    <button class="btn" id="fs" type="button">Full screen</button>
+  </div>
+  <ol class="chapters" id="chapters"></ol>
+  <p class="notice" id="notice" hidden></p>
+
+  <section class="code" id="code">
+    <h2>Code for this episode</h2>
+    <p class="sub">Each example is a complete Python file. The output under a file comes from a real run during the page build.</p>
+    <div class="exs" id="examples"></div>
+  </section>
+
+  <div class="below">
+    <section>
+      <h2>Transcript</h2>
+      <p class="sub">Narration written to ASD-STE100 Simplified Technical English rules. Select a line to go to it.</p>
+      <div id="transcript"></div>
+    </section>
+    <aside class="facts">
+      <div>
+        <h2>Sources</h2>
+        <p class="sub">Where the facts and numbers in this episode come from.</p>
+      </div>
+      <dl id="sources"></dl>
+      <p class="colophon">Voice: Windows text-to-speech draft voice. Narration follows the STE100 writing rules (sentence length, active voice, simple tenses); words were not checked against the licensed STE100 dictionary.</p>
+    </aside>
+  </div>
+</div>
+
+<audio id="aud" preload="auto"></audio>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+/* Loaded before the scene scripts, so scene files may use these at their top level. */
+const SCENES_BY_EP = {}, SCENE_ERRORS = {};
+const C = {};
+(() => {
+  const css = getComputedStyle(document.documentElement);
+  ["fg", "dim", "faint", "grid", "blue", "yellow", "teal", "red", "green", "purple", "orange", "stage", "panel", "code"]
+    .forEach(n => { C[n] = css.getPropertyValue("--" + n).trim(); });
+})();
+const LEVEL_COLOR = { "Base": C.blue, "Intermediate": C.green, "Advanced": C.purple, "AI engineering": C.yellow, "Deep dive": C.orange };
+function hexA(hex, a) {
+  const n = parseInt(hex.replace("#", ""), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+</script>
+<!--__SCENES__-->
+<script>
+"use strict";
+const DATA = /*__DATA__*/null;
+if (!DATA || typeof gsap === "undefined") {
+  const msg = !DATA
+    ? "This file is the page template. Run build.py, then open web/dist/series-local.html."
+    : "The animation library did not load. Check the internet connection, then reload the page.";
+  const n = document.getElementById("notice");
+  n.textContent = msg;
+  n.hidden = false;
+  document.getElementById("bigplay").disabled = true;
+  document.getElementById("play").disabled = true;
+  throw new Error(msg);
+}
+
+const NS = "http://www.w3.org/2000/svg";
+const canvas = document.getElementById("canvas");
+let EP = null, SEG = {}, SCENES = {}, tl = null, TOTAL = 0, clipN = 0;
+
+/* timing: positions on the current episode's narration clock */
+function seg(k) { const s = SEG[k]; if (!s) throw new Error(`no segment "${k}" in ${EP && EP.id}`); return s; }
+const at = (k, off = 0) => seg(k).start + off;
+const dur = k => seg(k).dur;
+const end = (k, off = 0) => seg(k).start + seg(k).dur + off;
+const frac = (k, f) => seg(k).start + seg(k).dur * f;
+
+/* ------------------------------------------------------------ builders */
+function makeScene(id) {
+  const el = document.createElement("div");
+  el.className = "scene";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", "0 0 1600 900");
+  el.appendChild(svg);
+  canvas.appendChild(el);
+  gsap.set(el, { autoAlpha: 0 });
+  SCENES[id] = el;
+  return { id, el, svg };
+}
+function S(parent, tag, attrs = {}, style = {}) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  Object.assign(e.style, style);
+  parent.appendChild(e);
+  return e;
+}
+function font(name) { return name === "serif" ? "var(--f-display)" : name === "mono" ? "var(--f-mono)" : "var(--f-body)"; }
+/* HTML text, centred on (x, y) unless anchor is "left" or "right". o.wrap = width in px for multi-line text. */
+function H(sc, text, o = {}) {
+  const e = document.createElement("div");
+  e.className = "t" + (o.wrap ? " wrapt" : "");
+  e.textContent = text;
+  e.style.left = (o.x ?? 800) + "px";
+  e.style.top = (o.y ?? 450) + "px";
+  e.style.fontSize = (o.size || 32) + "px";
+  e.style.color = o.color || C.fg;
+  e.style.fontWeight = o.weight || 400;
+  e.style.fontFamily = font(o.font);
+  if (o.wrap) { e.style.width = o.wrap + "px"; e.style.textAlign = o.align || "center"; }
+  sc.el.appendChild(e);
+  gsap.set(e, { xPercent: o.anchor === "left" ? 0 : o.anchor === "right" ? -100 : -50, yPercent: -50, autoAlpha: 0 });
+  return e;
+}
+/* SVG text: scales with its plot; anchor is start | middle | end */
+function T(parent, text, x, y, o = {}) {
+  const e = S(parent, "text", { x, y, "text-anchor": o.anchor || "middle" },
+    { fill: o.color || C.dim, fontFamily: font(o.font), fontSize: (o.size || 18) + "px", fontWeight: o.weight || 400 });
+  e.textContent = text;
+  return e;
+}
+function chip(sc, text, color, o = {}) {
+  const e = document.createElement("div");
+  e.className = "chip";
+  e.textContent = text;
+  e.style.left = (o.x ?? 800) + "px";
+  e.style.top = (o.y ?? 450) + "px";
+  e.style.fontSize = (o.size || 32) + "px";
+  if (o.font) e.style.fontFamily = font(o.font);
+  e.style.borderColor = color;
+  e.style.background = hexA(color, 0.15);
+  sc.el.appendChild(e);
+  gsap.set(e, { xPercent: -50, yPercent: -50, autoAlpha: 0 });
+  return e;
+}
+function centers(els, cx, gap) {
+  const w = els.map(e => e.offsetWidth);
+  const total = w.reduce((a, b) => a + b, 0) + gap * (els.length - 1);
+  let x = cx - total / 2;
+  return w.map(wi => { const c = x + wi / 2; x += wi + gap; return c; });
+}
+function rowLayout(els, cx, gap) {
+  const cs = centers(els, cx, gap);
+  els.forEach((e, i) => { e.style.left = cs[i] + "px"; });
+  return cs;
+}
+function arrow(sc, x1, y1, x2, y2, color, w = 4, head = 16) {
+  const ang = Math.atan2(y2 - y1, x2 - x1), ux = Math.cos(ang), uy = Math.sin(ang);
+  const bx = x2 - ux * head, by = y2 - uy * head;
+  const line = S(sc.svg, "line", { x1, y1, x2: bx, y2: by }, { stroke: color, strokeWidth: w });
+  const px = -uy * head * 0.55, py = ux * head * 0.55;
+  const tip = S(sc.svg, "polygon", { points: `${x2},${y2} ${bx + px},${by + py} ${bx - px},${by - py}` }, { fill: color });
+  gsap.set([line, tip], { autoAlpha: 0 });
+  return { line, tip };
+}
+/* a labelled box centred on (cx, cy) */
+function box(sc, cx, cy, w, h, color, label, o = {}) {
+  const r = S(sc.svg, "rect", { x: cx - w / 2, y: cy - h / 2, width: w, height: h, rx: o.rx ?? 14 },
+    { fill: hexA(color, o.fill ?? 0.1), stroke: color, strokeWidth: o.sw || 3 });
+  gsap.set(r, { autoAlpha: 0 });
+  const els = [r];
+  let t = null, s = null;
+  if (label) { t = H(sc, label, { x: cx, y: o.sub ? cy - 15 : cy, size: o.size || 28, color: o.color || color, weight: o.weight || 700, font: o.font }); els.push(t); }
+  if (o.sub) { s = H(sc, o.sub, { x: cx, y: cy + 21, size: o.subSize || 20, color: C.dim }); els.push(s); }
+  return { r, t, s, els, cx, cy, w, h, l: cx - w / 2, rt: cx + w / 2, top: cy - h / 2, bot: cy + h / 2 };
+}
+/* a code panel; top-left at (x, y). lines: array of strings. returns { el, rows } */
+function codeBox(sc, lines, o = {}) {
+  const e = document.createElement("div");
+  e.className = "codebox src";
+  e.style.left = (o.x ?? 100) + "px";
+  e.style.top = (o.y ?? 200) + "px";
+  e.style.fontSize = (o.size || 24) + "px";
+  if (o.w) e.style.width = o.w + "px";
+  const rows = lines.map(line => {
+    const r = document.createElement("span");
+    r.className = "row";
+    highlight(line || " ", r);
+    e.appendChild(r);
+    return r;
+  });
+  sc.el.appendChild(e);
+  gsap.set(e, { autoAlpha: 0 });
+  return { el: e, rows };
+}
+
+/* plots: axes in data units. o = { x, y, w, h, xr: [min, max], yr: [min, max], xticks, yticks, xfmt, yfmt, xlabel, ylabel } */
+function axes(sc, o) {
+  const { x, y, w, h } = o;
+  const [x0, x1] = o.xr, [y0, y1] = o.yr;
+  const X = v => x + (v - x0) / (x1 - x0) * w;
+  const Y = v => y + h - (v - y0) / (y1 - y0) * h;
+  const col = o.color || C.grid;
+  const g = S(sc.svg, "g");
+  const grid = [];
+  if (o.grid) {
+    (o.yticks || []).forEach(v => { if (v !== y0) grid.push(S(g, "line", { x1: x, y1: Y(v), x2: x + w, y2: Y(v) }, { stroke: C.faint, strokeWidth: 1.5 })); });
+  }
+  const xa = S(g, "line", { x1: x, y1: y + h, x2: x + w + 12, y2: y + h }, { stroke: col, strokeWidth: 2.5 });
+  const ya = S(g, "line", { x1: x, y1: y + h, x2: x, y2: y - 12 }, { stroke: col, strokeWidth: 2.5 });
+  const marks = [];
+  const fx = o.xfmt || (v => String(v)), fy = o.yfmt || (v => String(v));
+  const ts = o.tickSize || 18;
+  (o.xticks || []).forEach(v => {
+    marks.push(S(g, "line", { x1: X(v), y1: y + h, x2: X(v), y2: y + h + 8 }, { stroke: col, strokeWidth: 2 }));
+    marks.push(T(g, fx(v), X(v), y + h + 32, { size: ts }));
+  });
+  (o.yticks || []).forEach(v => {
+    marks.push(S(g, "line", { x1: x - 8, y1: Y(v), x2: x, y2: Y(v) }, { stroke: col, strokeWidth: 2 }));
+    marks.push(T(g, fy(v), x - 16, Y(v) + 6, { size: ts, anchor: "end" }));
+  });
+  const labels = [];
+  if (o.xlabel) labels.push(H(sc, o.xlabel, { x: x + w / 2, y: y + h + 68, size: o.labelSize || 22, color: C.dim }));
+  if (o.ylabel) labels.push(H(sc, o.ylabel, { anchor: "left", x: x - 6, y: y - 38, size: o.labelSize || 22, color: C.dim }));
+  const clipId = `clip-${++clipN}`;
+  const cp = S(sc.svg, "clipPath", { id: clipId });
+  S(cp, "rect", { x, y: y - 4, width: w + 4, height: h + 4 });
+  gsap.set([xa, ya, ...grid, ...marks], { autoAlpha: 0 });
+  const ax = {
+    X, Y, x, y, w, h, g, xa, ya, marks, labels, grid, clip: `url(#${clipId})`,
+    all: [xa, ya, ...grid, ...marks, ...labels],
+    show(t, d = 0.8) {
+      draw(xa, t, d); draw(ya, t, d);
+      if (grid.length) tl.to(grid, { autoAlpha: 1, duration: 0.5 }, t + d * 0.5);
+      tl.to(marks, { autoAlpha: 1, duration: 0.4 }, t + d * 0.6);
+      fadeIn(labels, t + d * 0.6, 0.4, { dy: 0 });
+    },
+  };
+  return ax;
+}
+function pathD(pts) { return pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(""); }
+/* the graph of f over [a, b] in data units, clipped to the plot */
+function curve(sc, ax, f, a, b, o = {}) {
+  const n = o.n || 160, pts = [];
+  for (let i = 0; i <= n; i++) { const v = a + (b - a) * i / n; pts.push([ax.X(v), ax.Y(f(v))]); }
+  const p = S(sc.svg, "path", { d: pathD(pts), "clip-path": o.clip === false ? "" : ax.clip },
+    { fill: "none", stroke: o.color || C.blue, strokeWidth: o.width || 4, strokeLinecap: "round", strokeLinejoin: "round" });
+  gsap.set(p, { autoAlpha: 0 });
+  return p;
+}
+/* a straight line y = w*x + b over [a, b] */
+function lineWB(sc, ax, w, b, a, z, o = {}) {
+  const l = S(sc.svg, "line", { x1: ax.X(a), y1: ax.Y(w * a + b), x2: ax.X(z), y2: ax.Y(w * z + b), "clip-path": ax.clip },
+    { stroke: o.color || C.yellow, strokeWidth: o.width || 4, strokeLinecap: "round" });
+  gsap.set(l, { autoAlpha: 0 });
+  return l;
+}
+function moveLineWB(l, ax, w, b, a, z, t, d = 0.8) {
+  tl.to(l, { attr: { y1: ax.Y(w * a + b), y2: ax.Y(w * z + b) }, duration: d, ease: "power2.inOut" }, t);
+}
+function dots(sc, ax, xs, ys, o = {}) {
+  const g = S(sc.svg, "g");
+  const ds = xs.map((v, i) => S(g, "circle", { cx: ax.X(v), cy: ax.Y(ys[i]), r: o.r || 8 },
+    o.hollow ? { fill: C.stage, stroke: o.color || C.blue, strokeWidth: 3 } : { fill: o.color || C.blue }));
+  gsap.set(ds, { autoAlpha: 0 });
+  return ds;
+}
+
+/* ------------------------------------------------------------ animation verbs */
+function fadeIn(el, t, d = 0.6, o = {}) {
+  gsap.set(el, { x: o.dx ?? 0, y: o.dy ?? 14 });
+  tl.to(el, { autoAlpha: 1, x: 0, y: 0, duration: d, ease: "power2.out", stagger: o.stagger || 0 }, t);
+}
+function fadeOut(el, t, d = 0.5) { tl.to(el, { autoAlpha: 0, duration: d }, t); }
+function show(el, t, d = 0.4) { tl.to(el, { autoAlpha: 1, duration: d }, t); }
+function splitChars(e) {
+  if (e._chars) return e._chars;
+  const s = e.textContent;
+  e.textContent = "";
+  e._chars = [...s].map(ch => {
+    const sp = document.createElement("span");
+    sp.textContent = ch === " " ? " " : ch;
+    sp.style.display = "inline-block";
+    e.appendChild(sp);
+    return sp;
+  });
+  return e._chars;
+}
+function write(e, t, d = 1) {
+  const cs = splitChars(e);
+  gsap.set(cs, { opacity: 0, y: 10 });
+  tl.set(e, { autoAlpha: 1 }, t);
+  tl.to(cs, { opacity: 1, y: 0, duration: Math.min(0.45, d * 0.5), ease: "power2.out", stagger: (d * 0.6) / cs.length }, t);
+}
+function draw(el, t, d = 0.8) {
+  const L = el.getTotalLength();
+  gsap.set(el, { strokeDasharray: L + 1, strokeDashoffset: L + 1, autoAlpha: 0 });
+  tl.set(el, { autoAlpha: 1 }, t);
+  tl.to(el, { strokeDashoffset: 0, duration: d, ease: "power1.inOut" }, t);
+}
+function drawArrow(a, t, d = 0.8) { draw(a.line, t, d); tl.to(a.tip, { autoAlpha: 1, duration: 0.2 }, t + d * 0.85); }
+function pulse(el, t, s = 1.15, d = 0.5) {
+  tl.to(el, { scale: s, duration: d / 2, yoyo: true, repeat: 1, transformOrigin: "50% 50%", ease: "power1.inOut" }, t);
+}
+function cross(sc, cx, cy, w, h, t) {
+  const a = S(sc.svg, "line", { x1: cx - w, y1: cy - h, x2: cx + w, y2: cy + h }, { stroke: C.red, strokeWidth: 6 });
+  const b = S(sc.svg, "line", { x1: cx - w, y1: cy + h, x2: cx + w, y2: cy - h }, { stroke: C.red, strokeWidth: 6 });
+  draw(a, t, 0.3); draw(b, t + 0.25, 0.3);
+  return [a, b];
+}
+/* a number that counts from `from` to `to`; f formats it. Safe under scrubbing. */
+function counter(el, t, from, to, d, f = v => v.toFixed(0)) {
+  const o = { v: from };
+  if (el._cnt === undefined) el.textContent = f(from);
+  el._cnt = to;
+  tl.to(o, { v: to, duration: d, ease: "power1.inOut", onUpdate: () => { el.textContent = f(o.v); } }, t);
+}
+/* replace the text of el at time t (and restore it when the playhead goes back). Register in time order. */
+function swapText(el, t, txt) {
+  const prev = el._txt ?? el.textContent;
+  el._txt = txt;
+  const o = { p: 0 };
+  tl.to(o, { p: 1, duration: 0.01, onUpdate: () => { el.textContent = o.p > 0 ? txt : prev; } }, t);
+}
+
+/* ------------------------------------------------------------ Python highlighting (page + stage) */
+const PY_RE = /(#[^\n]*)|("""[\s\S]*?"""|'''[\s\S]*?'''|\b[rbfRBF]{1,2}"(?:\\.|[^"\\\n])*"|\b[rbfRBF]{1,2}'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*')|\b(False|None|True|and|as|assert|async|await|break|class|continue|def|del|elif|else|except|finally|for|from|global|if|import|in|is|lambda|nonlocal|not|or|pass|raise|return|try|while|with|yield)\b|\b(\d[\d_]*(?:\.\d+)?(?:[eE][+-]?\d+)?)\b/g;
+function highlight(code, into) {
+  let last = 0, m;
+  PY_RE.lastIndex = 0;
+  while ((m = PY_RE.exec(code))) {
+    if (m.index > last) into.append(code.slice(last, m.index));
+    const sp = document.createElement("span");
+    sp.className = m[1] ? "c" : m[2] ? "s" : m[3] ? "k" : "n";
+    sp.textContent = m[0];
+    into.append(sp);
+    last = PY_RE.lastIndex;
+  }
+  into.append(code.slice(last));
+}
+
+/* a scene for a chapter whose animation is not written yet */
+function placeholderScene(sc, ch) {
+  const a = H(sc, ch.title, { y: 400, size: 64, font: "serif", weight: 600 });
+  const b = H(sc, "Narration only: the animation for this chapter is in production.", { y: 500, size: 28, color: C.dim });
+  fadeIn([a, b], ch.start + 0.2, 0.6, { stagger: 0.2 });
+}
+
+/* ------------------------------------------------------------ player */
+const stage = document.getElementById("stage");
+const poster = document.getElementById("poster");
+const aud = document.getElementById("aud");
+const playBtn = document.getElementById("play");
+const seek = document.getElementById("seek");
+const timeEl = document.getElementById("time");
+const capEl = document.getElementById("caption");
+const ccBtn = document.getElementById("cc");
+const notice = document.getElementById("notice");
+let playing = false, useAudio = true, clockBase = 0, clockStart = 0, captionsOn = true, lastKey = null;
+
+const fmt = s => { s = Math.max(0, Math.floor(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+
+function fit() {
+  const W = stage.clientWidth, Hh = stage.clientHeight;
+  const s = Math.min(W / 1600, Hh / 900);
+  canvas.style.transform = `translate(${(W - 1600 * s) / 2}px, ${(Hh - 900 * s) / 2}px) scale(${s})`;
+}
+new ResizeObserver(fit).observe(stage);
+
+function now() {
+  if (useAudio) return aud.currentTime;
+  return playing ? clockBase + (performance.now() - clockStart) / 1000 : clockBase;
+}
+function segAt(t) {
+  let cur = null;
+  for (const s of EP.segments) { if (s.start <= t + 0.05) cur = s; else break; }
+  return cur && t < cur.start + cur.dur + 0.6 ? cur : null;
+}
+let lastT = 0;
+function render(t) {
+  lastT = t;
+  if (tl) {
+    try { tl.time(Math.min(t, tl.duration()), false); }
+    catch (err) { console.error(`timeline ${EP.id} at ${t.toFixed(2)}s:`, err); }
+  }
+  seek.value = t;
+  timeEl.textContent = `${fmt(t)} / ${fmt(TOTAL)}`;
+  const s = segAt(t);
+  const key = s ? s.key : null;
+  if (key !== lastKey) {
+    lastKey = key;
+    capEl.textContent = captionsOn && s ? s.text : "";
+    document.querySelectorAll(".tr button.on").forEach(b => b.classList.remove("on"));
+    if (s) document.querySelector(`.tr button[data-k="${s.key}"]`)?.classList.add("on");
+  }
+  const ch = [...EP.chapters].reverse().find(c => c.start - 0.5 <= t);
+  document.querySelectorAll(".chapters button").forEach(b => b.classList.toggle("on", !!ch && b.dataset.id === ch.id));
+}
+function loop() {
+  const t = now();
+  render(t);
+  if (!playing) return;
+  if (t >= TOTAL - 0.02) { pause(); return; }
+  requestAnimationFrame(loop);
+}
+function setPlayUI() {
+  playBtn.textContent = playing ? "Pause" : "Play";
+  playBtn.setAttribute("aria-label", playing ? "Pause" : "Play");
+}
+function startClock() { clockStart = performance.now(); }
+function play() {
+  if (!tl) return;
+  poster.hidden = true;
+  if (now() >= TOTAL - 0.05) seekTo(0);
+  playing = true;
+  setPlayUI();
+  if (useAudio) {
+    aud.play().catch(() => { useAudio = false; showNotice(); clockBase = 0; startClock(); });
+  } else startClock();
+  requestAnimationFrame(loop);
+}
+function pause() {
+  if (!useAudio) clockBase = now();
+  playing = false;
+  aud.pause();
+  setPlayUI();
+  render(now());
+}
+function seekTo(t) {
+  t = Math.max(0, Math.min(TOTAL, t));
+  if (useAudio) { try { aud.currentTime = t; } catch (e) { /* not ready yet */ } }
+  clockBase = t; clockStart = performance.now();
+  render(t);
+}
+function showNotice(msg) {
+  notice.hidden = false;
+  notice.textContent = msg || "The narration audio did not load. The animation plays with subtitles only.";
+}
+aud.addEventListener("error", () => { if (useAudio && aud.getAttribute("src")) { const t = now(); useAudio = false; clockBase = t; startClock(); showNotice(); } });
+aud.addEventListener("loadedmetadata", () => { if (!playing && clockBase > 0) { try { aud.currentTime = clockBase; } catch (e) { /* ignore */ } } });
+aud.addEventListener("ended", () => { if (useAudio) { playing = false; setPlayUI(); render(TOTAL); } });
+
+playBtn.addEventListener("click", () => (playing ? pause() : play()));
+document.getElementById("bigplay").addEventListener("click", play);
+seek.addEventListener("input", () => { poster.hidden = true; seekTo(parseFloat(seek.value)); });
+ccBtn.addEventListener("click", () => {
+  captionsOn = !captionsOn;
+  ccBtn.setAttribute("aria-pressed", String(captionsOn));
+  lastKey = "__";
+  render(now());
+});
+document.getElementById("fs").addEventListener("click", () => {
+  if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+  else stage.requestFullscreen?.().catch(() => {});
+});
+document.addEventListener("fullscreenchange", fit);
+document.addEventListener("keydown", e => {
+  const tag = (e.target.tagName || "").toLowerCase();
+  if (tag === "input" || tag === "button" || tag === "textarea" || tag === "summary") return;
+  if (e.code === "Space") { e.preventDefault(); playing ? pause() : play(); }
+  else if (e.code === "ArrowRight") seekTo(now() + 5);
+  else if (e.code === "ArrowLeft") seekTo(now() - 5);
+});
+
+/* ------------------------------------------------------------ page lists */
+const pad2 = n => String(n).padStart(2, "0");
+function buildEpisodeStrip() {
+  const ol = document.getElementById("eps");
+  document.getElementById("series-eyebrow").textContent = `Narrated series · ${DATA.series.length} episodes`;
+  DATA.series.forEach(s => {
+    const li = document.createElement("li");
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "ep";
+    b.dataset.id = s.id;
+    b.style.setProperty("--lv", LEVEL_COLOR[s.level] || C.grid);
+    const ep = DATA.episodes[s.id];
+    const parts = [["ep-n", `Episode ${pad2(s.n)}`], ["ep-lv", s.level], ["ep-t", s.title], ["ep-d", ep ? fmt(ep.total) : "In production"]];
+    parts.forEach(([cls, txt]) => { const sp = document.createElement("span"); sp.className = cls; sp.textContent = txt; b.appendChild(sp); });
+    if (!ep) b.disabled = true;
+    else b.addEventListener("click", () => {
+      if (location.hash !== "#" + s.id) location.hash = s.id;
+      else loadEpisode(s.id);
+    });
+    li.appendChild(b);
+    ol.appendChild(li);
+  });
+}
+function buildLists() {
+  const chList = document.getElementById("chapters");
+  const tr = document.getElementById("transcript");
+  chList.replaceChildren();
+  tr.replaceChildren();
+  EP.chapters.forEach((ch, i) => {
+    const li = document.createElement("li");
+    const b = document.createElement("button");
+    b.type = "button";
+    b.dataset.id = ch.id;
+    b.innerHTML = `<span class="n">${i + 1}</span>`;
+    b.append(ch.title);
+    b.addEventListener("click", () => { poster.hidden = true; seekTo(Math.max(0, ch.start - 0.45)); });
+    li.appendChild(b);
+    chList.appendChild(li);
+
+    const h = document.createElement("h3");
+    h.className = "tr-ch";
+    h.textContent = `${i + 1} · ${ch.title}`;
+    tr.appendChild(h);
+    const ol = document.createElement("ol");
+    ol.className = "tr";
+    EP.segments.filter(s => s.chapter === ch.id).forEach(s => {
+      const li2 = document.createElement("li");
+      const b2 = document.createElement("button");
+      b2.type = "button";
+      b2.dataset.k = s.key;
+      const ts = document.createElement("span"); ts.className = "ts"; ts.textContent = fmt(s.start);
+      const tx = document.createElement("span"); tx.textContent = s.text;
+      b2.append(ts, tx);
+      b2.addEventListener("click", () => { poster.hidden = true; seekTo(s.start - 0.05); });
+      li2.appendChild(b2);
+      ol.appendChild(li2);
+    });
+    tr.appendChild(ol);
+  });
+}
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function buildExamples() {
+  const box = document.getElementById("examples");
+  box.replaceChildren();
+  EP.examples.forEach((ex, i) => {
+    const d = el("details", "ex");
+    if (i === 0) d.open = true;
+    const sm = el("summary");
+    sm.append(el("span", "ex-t", ex.title), el("span", "ex-f", ex.file),
+      ex.ran ? el("span", "badge ok", "ran in build") : el("span", "badge no", "not run here"));
+    const body = el("div", "ex-body");
+    body.append(el("p", "ex-about", ex.about));
+    const wrap = el("div", "codewrap");
+    const pre = el("pre", "src");
+    const code = el("code");
+    highlight(ex.code, code);
+    pre.appendChild(code);
+    const cp = el("button", "copy", "Copy");
+    cp.type = "button";
+    cp.addEventListener("click", () => {
+      const done = () => { cp.textContent = "Copied"; setTimeout(() => { cp.textContent = "Copy"; }, 1500); };
+      const fallback = () => { const r = document.createRange(); r.selectNodeContents(code); const s = getSelection(); s.removeAllRanges(); s.addRange(r); cp.textContent = "Selected: press Ctrl+C"; };
+      try { navigator.clipboard.writeText(ex.code).then(done, fallback); } catch (e) { fallback(); }
+    });
+    wrap.append(cp, pre);
+    body.append(wrap);
+    if (ex.ran) {
+      body.append(el("p", "out-h", "Output"), el("pre", "out", ex.output));
+    } else if (ex.why_not_run) {
+      body.append(el("p", "out-h", "Why it did not run here"), el("p", "ex-about", ex.why_not_run));
+    }
+    d.append(sm, body);
+    box.appendChild(d);
+  });
+  document.getElementById("code").hidden = EP.examples.length === 0;
+}
+function buildSources() {
+  const dl = document.getElementById("sources");
+  dl.replaceChildren();
+  EP.sources.forEach(s => {
+    const dt = el("dt", null, s.label);
+    const dd = el("dd", null, s.text + (s.url ? " " : ""));
+    if (s.url) { const a = el("a", null, new URL(s.url).hostname.replace(/^www\./, "")); a.href = s.url; a.target = "_blank"; a.rel = "noopener"; dd.appendChild(a); }
+    dl.append(dt, dd);
+  });
+}
+
+/* ------------------------------------------------------------ episodes */
+function buildTimeline() {
+  tl = gsap.timeline({ paused: true });
+  const builders = SCENES_BY_EP[EP.id] || {};
+  const errors = SCENE_ERRORS[EP.id] ? [`scene file: ${SCENE_ERRORS[EP.id]}`] : [];
+  EP.chapters.forEach(ch => {
+    let sc = makeScene(ch.id);
+    const fn = builders[ch.id];
+    try {
+      if (fn) fn(sc, EP.nums); else placeholderScene(sc, ch);
+    } catch (err) {
+      console.error(`scene ${EP.id}/${ch.id}:`, err);
+      errors.push(`${ch.title}: ${err.message}`);
+      sc.el.remove();
+      sc = makeScene(ch.id);
+      placeholderScene(sc, ch);
+    }
+  });
+  gsap.set(SCENES[EP.chapters[0].id], { autoAlpha: 1 });
+  EP.chapters.forEach((ch, i) => {
+    const sc = SCENES[ch.id], nx = EP.chapters[i + 1];
+    if (i > 0) tl.set(sc, { autoAlpha: 1 }, ch.start - 0.45);
+    if (nx) tl.to(sc, { autoAlpha: 0, duration: 0.6 }, nx.start - 1.0);
+  });
+  tl.to({}, { duration: 0.01 }, TOTAL);
+  if (errors.length) showNotice("Some scenes did not build: " + errors.join("; "));
+}
+function loadEpisode(id) {
+  const ep = DATA.episodes[id] || DATA.episodes[DATA.series.find(s => DATA.episodes[s.id]).id];
+  if (playing) pause();
+  if (tl) { tl.kill(); tl = null; }
+  canvas.replaceChildren();
+  SCENES = {};
+  EP = ep;
+  SEG = Object.fromEntries(ep.segments.map(s => [s.key, s]));
+  TOTAL = ep.total;
+  notice.hidden = true;
+  useAudio = true; clockBase = 0; lastKey = null;
+  aud.src = ep.audio;
+  aud.load();
+
+  const eyebrow = `Episode ${pad2(ep.n)} · ${ep.level} · ${fmt(ep.total)}`;
+  document.getElementById("ep-eyebrow").textContent = eyebrow;
+  document.getElementById("ep-title").textContent = ep.title;
+  document.getElementById("ep-blurb").textContent = ep.blurb;
+  document.getElementById("poster-eyebrow").textContent = eyebrow;
+  document.getElementById("poster-title").textContent = ep.title;
+  document.getElementById("poster-sub").textContent = ep.chapters.map(c => c.title).join(" · ");
+  document.querySelectorAll(".ep").forEach(b => b.setAttribute("aria-current", String(b.dataset.id === ep.id)));
+  poster.hidden = false;
+  seek.max = TOTAL;
+  buildLists();
+  buildExamples();
+  buildSources();
+  buildTimeline();
+  render(0);
+}
+
+buildEpisodeStrip();
+fit();
+const startId = () => (location.hash || "").slice(1);
+/* Scenes measure text widths, so they are built after the web fonts load. If the fonts take longer than
+   2.5 s, start with the fallback fonts, then rebuild the scenes once (same time, same episode) when they arrive. */
+let fontsLoaded = false;
+document.fonts.ready.then(() => {
+  fontsLoaded = true;
+  if (!EP) return;
+  if (tl) { tl.kill(); tl = null; }
+  canvas.replaceChildren();
+  SCENES = {};
+  buildTimeline();
+  render(lastT);
+});
+Promise.race([document.fonts.ready, new Promise(r => setTimeout(r, 2500))]).then(() => {
+  loadEpisode(startId());
+  window.addEventListener("hashchange", () => loadEpisode(startId()));
+});
+</script>
